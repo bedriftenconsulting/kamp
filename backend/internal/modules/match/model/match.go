@@ -4,7 +4,7 @@ import "time"
 
 type Match struct {
 	ID            string     `json:"id"`
-	TournamentID  string     `json:"tournament_id"`
+	TournamentID  *string    `json:"tournament_id"`
 	Player1ID     *string    `json:"player1_id"`
 	Player2ID     *string    `json:"player2_id"`
 	CourtID       *string    `json:"court_id"`

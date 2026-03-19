@@ -95,10 +95,15 @@ func main() {
 		// Player
 		api.POST("/players", playerHdl.CreatePlayer)
 		api.GET("/players", playerHdl.GetPlayers)
+		api.PUT("/players/:id", playerHdl.UpdatePlayer)
+		api.DELETE("/players/:id", playerHdl.DeletePlayer)
 
 		// Match
 		api.POST("/matches", matchHdl.CreateMatch)
 		api.GET("/matches", matchHdl.GetMatches)
+		api.PUT("/matches/:id", matchHdl.UpdateMatch)
+		api.DELETE("/matches/:id", matchHdl.DeleteMatch)
+		api.POST("/matches/:id/complete", matchHdl.CompleteMatch)
 
 		// Scoring
 		api.POST("/matches/:id/point", scoringHdl.AddPoint)

@@ -22,3 +22,11 @@ func (s *PlayerService) CreatePlayer(ctx context.Context, p *model.Player) error
 func (s *PlayerService) GetPlayers(ctx context.Context) ([]model.Player, error) {
 	return s.repo.GetAll(ctx)
 }
+
+func (s *PlayerService) UpdatePlayer(ctx context.Context, p *model.Player) error {
+	return s.repo.Update(ctx, p)
+}
+
+func (s *PlayerService) DeletePlayer(ctx context.Context, id string) error {
+	return s.repo.Delete(ctx, id)
+}

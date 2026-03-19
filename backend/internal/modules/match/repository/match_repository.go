@@ -48,8 +48,8 @@ func (r *MatchRepository) GetAll(ctx context.Context) ([]model.Match, error) {
 		m.winner_id,
 		m.umpire_id,
 		m.created_at,
-		p1.first_name || ' ' || p1.last_name AS player1_name,
-		p2.first_name || ' ' || p2.last_name AS player2_name
+		COALESCE(p1.first_name || ' ' || p1.last_name, 'TBD') AS player1_name,
+		COALESCE(p2.first_name || ' ' || p2.last_name, 'TBD') AS player2_name
 	FROM matches m
 	LEFT JOIN players p1 ON m.player1_id = p1.id
 	LEFT JOIN players p2 ON m.player2_id = p2.id
@@ -78,8 +78,8 @@ func (r *MatchRepository) GetAll(ctx context.Context) ([]model.Match, error) {
 			&m.WinnerID,
 			&m.UmpireID,
 			&m.CreatedAt,
-			&m.Player1Name, // ✅ NEW
-			&m.Player2Name, // ✅ NEW
+			&m.Player1Name,
+			&m.Player2Name,
 		)
 		if err != nil {
 			return nil, err
@@ -88,6 +88,83 @@ func (r *MatchRepository) GetAll(ctx context.Context) ([]model.Match, error) {
 	}
 
 	return matches, nil
+}
+
+func (r *MatchRepository) Update(ctx context.Context, m *model.Match) error {
+	query := `
+	UPDATE matches
+	SET tournament_id = $1,
+		player1_id = $2,
+		player2_id = $3,
+		court_id = $4,
+		round = $5,
+		scheduled_time = $6,
+		status = $7,
+		updated_at = NOW()
+	WHERE id = $8
+	`
+
+	_, err := r.db.Exec(ctx, query,
+		m.TournamentID,
+		m.Player1ID,
+		m.Player2ID,
+		m.CourtID,
+		m.Round,
+		m.ScheduledTime,
+		m.Status,
+		m.ID,
+	)
+	return err
+}
+
+func (r *MatchRepository) Delete(ctx context.Context, matchID string) error {
+	_, err := r.db.Exec(ctx, `DELETE FROM matches WHERE id = $1`, matchID)
+	return err
+}
+
+func (r *MatchRepository) Complete(ctx context.Context, matchID string, winnerID *string, p1Sets, p2Sets, p1Games, p2Games int) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(ctx, `
+		UPDATE matches
+		SET winner_id = $1,
+			status = 'completed',
+			updated_at = NOW()
+		WHERE id = $2
+	`, winnerID, matchID)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(ctx, `
+		INSERT INTO match_state (
+			match_id,
+			player1_sets,
+			player2_sets,
+			player1_games,
+			player2_games,
+			player1_points,
+			player2_points,
+			updated_at
+		)
+		VALUES ($1, $2, $3, $4, $5, '0', '0', NOW())
+		ON CONFLICT (match_id)
+		DO UPDATE SET
+			player1_sets = EXCLUDED.player1_sets,
+			player2_sets = EXCLUDED.player2_sets,
+			player1_games = EXCLUDED.player1_games,
+			player2_games = EXCLUDED.player2_games,
+			updated_at = NOW()
+	`, matchID, p1Sets, p2Sets, p1Games, p2Games)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
 }
 
 func (r *MatchRepository) FinishMatch(ctx context.Context, matchID, winnerID string) error {

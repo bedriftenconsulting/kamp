@@ -2,6 +2,8 @@ package handler
 
 import (
 	"net/http"
+	"strings"
+	"time"
 
 	"kamp/internal/modules/player/model"
 	"kamp/internal/modules/player/service"
@@ -13,25 +15,40 @@ type PlayerHandler struct {
 	service *service.PlayerService
 }
 
+type playerRequest struct {
+	ID              string `json:"id"`
+	FirstName       string `json:"first_name" binding:"required"`
+	LastName        string `json:"last_name" binding:"required"`
+	DateOfBirth     string `json:"date_of_birth" binding:"required"`
+	Nationality     string `json:"nationality" binding:"required"`
+	Ranking         int    `json:"ranking" binding:"required"`
+	Bio             string `json:"bio"`
+	ProfileImageURL string `json:"profile_image_url"`
+}
+
 func NewPlayerHandler(service *service.PlayerService) *PlayerHandler {
 	return &PlayerHandler{service: service}
 }
 
 func (h *PlayerHandler) CreatePlayer(c *gin.Context) {
-	var input model.Player
-
+	var input playerRequest
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	err := h.service.CreatePlayer(c, &input)
+	player, err := buildPlayerFromRequest(input)
 	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.service.CreatePlayer(c, player); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusCreated, input)
+	c.JSON(http.StatusCreated, player)
 }
 
 func (h *PlayerHandler) GetPlayers(c *gin.Context) {
@@ -42,4 +59,73 @@ func (h *PlayerHandler) GetPlayers(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, players)
+}
+
+func (h *PlayerHandler) UpdatePlayer(c *gin.Context) {
+	id := c.Param("id")
+	if strings.TrimSpace(id) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "player id is required"})
+		return
+	}
+
+	var input playerRequest
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	input.ID = id
+
+	player, err := buildPlayerFromRequest(input)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.service.UpdatePlayer(c, player); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, player)
+}
+
+func (h *PlayerHandler) DeletePlayer(c *gin.Context) {
+	id := c.Param("id")
+	if strings.TrimSpace(id) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "player id is required"})
+		return
+	}
+
+	if err := h.service.DeletePlayer(c, id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "player deleted"})
+}
+
+func buildPlayerFromRequest(input playerRequest) (*model.Player, error) {
+	dob, err := parseFlexibleDate(input.DateOfBirth)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.Player{
+		ID:              input.ID,
+		FirstName:       input.FirstName,
+		LastName:        input.LastName,
+		DateOfBirth:     dob,
+		Nationality:     input.Nationality,
+		Ranking:         input.Ranking,
+		Bio:             input.Bio,
+		ProfileImageURL: input.ProfileImageURL,
+	}, nil
+}
+
+func parseFlexibleDate(v string) (time.Time, error) {
+	if t, err := time.Parse("2006-01-02", v); err == nil {
+		return t, nil
+	}
+
+	return time.Parse(time.RFC3339, v)
 }

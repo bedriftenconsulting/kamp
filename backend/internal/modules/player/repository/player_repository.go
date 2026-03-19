@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"strings"
 
 	"kamp/internal/modules/player/model"
 
@@ -17,13 +18,32 @@ func NewPlayerRepository(db *pgxpool.Pool) *PlayerRepository {
 }
 
 func (r *PlayerRepository) Create(ctx context.Context, p *model.Player) error {
+	if strings.TrimSpace(p.ID) == "" {
+		query := `
+		INSERT INTO players (first_name, last_name, date_of_birth, nationality, ranking, bio, profile_image_url)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id, created_at
+		`
+
+		return r.db.QueryRow(ctx, query,
+			p.FirstName,
+			p.LastName,
+			p.DateOfBirth,
+			p.Nationality,
+			p.Ranking,
+			p.Bio,
+			p.ProfileImageURL,
+		).Scan(&p.ID, &p.CreatedAt)
+	}
+
 	query := `
-	INSERT INTO players (first_name, last_name, date_of_birth, nationality, ranking, bio, profile_image_url)
-	VALUES ($1, $2, $3, $4, $5, $6, $7)
-	RETURNING id, created_at
+	INSERT INTO players (id, first_name, last_name, date_of_birth, nationality, ranking, bio, profile_image_url)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	RETURNING created_at
 	`
 
 	return r.db.QueryRow(ctx, query,
+		p.ID,
 		p.FirstName,
 		p.LastName,
 		p.DateOfBirth,
@@ -31,7 +51,7 @@ func (r *PlayerRepository) Create(ctx context.Context, p *model.Player) error {
 		p.Ranking,
 		p.Bio,
 		p.ProfileImageURL,
-	).Scan(&p.ID, &p.CreatedAt)
+	).Scan(&p.CreatedAt)
 }
 
 func (r *PlayerRepository) GetAll(ctx context.Context) ([]model.Player, error) {
@@ -69,4 +89,36 @@ func (r *PlayerRepository) GetAll(ctx context.Context) ([]model.Player, error) {
 	}
 
 	return players, nil
+}
+
+func (r *PlayerRepository) Update(ctx context.Context, p *model.Player) error {
+	query := `
+	UPDATE players
+	SET first_name = $1,
+	    last_name = $2,
+	    date_of_birth = $3,
+	    nationality = $4,
+	    ranking = $5,
+	    bio = $6,
+	    profile_image_url = $7,
+	    updated_at = CURRENT_TIMESTAMP
+	WHERE id = $8
+	`
+
+	_, err := r.db.Exec(ctx, query,
+		p.FirstName,
+		p.LastName,
+		p.DateOfBirth,
+		p.Nationality,
+		p.Ranking,
+		p.Bio,
+		p.ProfileImageURL,
+		p.ID,
+	)
+	return err
+}
+
+func (r *PlayerRepository) Delete(ctx context.Context, id string) error {
+	_, err := r.db.Exec(ctx, `DELETE FROM players WHERE id = $1`, id)
+	return err
 }
