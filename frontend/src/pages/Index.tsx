@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import ScoreCard from "@/components/matches/ScoreCard";
 import { motion } from "framer-motion";
+import { API_V1_URL } from "@/lib/api-url";
 
 export default function Index() {
   const [matches, setMatches] = useState<any[]>([]);
@@ -14,8 +15,8 @@ export default function Index() {
     const fetchData = async () => {
       try {
         const [matchesRes, tournamentRes] = await Promise.all([
-          fetch("http://localhost:8080/api/v1/matches"),
-          fetch("http://localhost:8080/api/v1/tournaments"),
+          fetch(`${API_V1_URL}/matches`),
+          fetch(`${API_V1_URL}/tournaments`),
         ]);
 
         const matchesData = await matchesRes.json();

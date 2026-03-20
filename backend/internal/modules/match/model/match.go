@@ -14,6 +14,7 @@ type Match struct {
 	WinnerID      *string    `json:"winner_id"`
 	UmpireID      *string    `json:"umpire_id"`
 	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
 
 	Player1Name string `json:"player1_name"`
 	Player2Name string `json:"player2_name"`

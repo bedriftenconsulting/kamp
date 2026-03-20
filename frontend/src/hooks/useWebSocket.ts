@@ -1,3 +1,4 @@
+import { WS_URL } from "@/lib/api-url";
 import { useEffect } from "react";
 
 export const useWebSocket = (
@@ -6,7 +7,7 @@ export const useWebSocket = (
 ) => {
   useEffect(() => {
     const ws = new WebSocket(
-      `ws://localhost:8080/ws?match_id=${matchId}`
+      `${WS_URL}/ws?match_id=${matchId}`
     );
 
     ws.onmessage = (event) => {

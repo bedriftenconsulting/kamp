@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import ScoreCard from "@/components/matches/ScoreCard";
+import { API_V1_URL } from "@/lib/api-url";
 import {
   LayoutDashboard,
   Users,
@@ -152,9 +153,9 @@ export default function AdminDashboard() {
   const fetchData = async () => {
     try {
       const [matchesRes, playersRes, tournamentRes] = await Promise.all([
-        fetch("http://localhost:8080/api/v1/matches"),
-        fetch("http://localhost:8080/api/v1/players"),
-        fetch("http://localhost:8080/api/v1/tournaments"),
+        fetch(`${API_V1_URL}/matches`),
+        fetch(`${API_V1_URL}/players`),
+        fetch(`${API_V1_URL}/tournaments`),
       ]);
 
       const matchesData = await matchesRes.json();
@@ -279,8 +280,8 @@ export default function AdminDashboard() {
       };
 
       const url = isEditingPlayer
-        ? `http://localhost:8080/api/v1/players/${playerForm.id}`
-        : "http://localhost:8080/api/v1/players";
+        ? `${API_V1_URL}/players/${playerForm.id}`
+        : `${API_V1_URL}/players`;
 
       const method = isEditingPlayer ? "PUT" : "POST";
 
@@ -310,7 +311,7 @@ export default function AdminDashboard() {
 
     setDeletingPlayerId(id);
     try {
-      const res = await fetch(`http://localhost:8080/api/v1/players/${id}`, {
+      const res = await fetch(`${API_V1_URL}/players/${id}`, {
         method: "DELETE",
       });
 
@@ -375,8 +376,8 @@ export default function AdminDashboard() {
       };
 
       const url = isEditingMatch
-        ? `http://localhost:8080/api/v1/matches/${matchForm.id}`
-        : "http://localhost:8080/api/v1/matches";
+        ? `${API_V1_URL}/matches/${matchForm.id}`
+        : `${API_V1_URL}/matches`;
       const method = isEditingMatch ? "PUT" : "POST";
 
       const res = await fetch(url, {
@@ -405,7 +406,7 @@ export default function AdminDashboard() {
 
     setDeletingMatchId(id);
     try {
-      const res = await fetch(`http://localhost:8080/api/v1/matches/${id}`, {
+      const res = await fetch(`${API_V1_URL}/matches/${id}`, {
         method: "DELETE",
       });
 
@@ -449,7 +450,7 @@ export default function AdminDashboard() {
         player2_games: Number(completeForm.player2_games || 0),
       };
 
-      const res = await fetch(`http://localhost:8080/api/v1/matches/${completeForm.match_id}/complete`, {
+      const res = await fetch(`${API_V1_URL}/matches/${completeForm.match_id}/complete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

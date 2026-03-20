@@ -22,7 +22,7 @@ func (r *PlayerRepository) Create(ctx context.Context, p *model.Player) error {
 		query := `
 		INSERT INTO players (first_name, last_name, date_of_birth, nationality, ranking, bio, profile_image_url)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING id, created_at
+		RETURNING id, created_at, updated_at
 		`
 
 		return r.db.QueryRow(ctx, query,
@@ -33,13 +33,13 @@ func (r *PlayerRepository) Create(ctx context.Context, p *model.Player) error {
 			p.Ranking,
 			p.Bio,
 			p.ProfileImageURL,
-		).Scan(&p.ID, &p.CreatedAt)
+		).Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
 	}
 
 	query := `
 	INSERT INTO players (id, first_name, last_name, date_of_birth, nationality, ranking, bio, profile_image_url)
 	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-	RETURNING created_at
+	RETURNING created_at, updated_at
 	`
 
 	return r.db.QueryRow(ctx, query,
@@ -51,12 +51,12 @@ func (r *PlayerRepository) Create(ctx context.Context, p *model.Player) error {
 		p.Ranking,
 		p.Bio,
 		p.ProfileImageURL,
-	).Scan(&p.CreatedAt)
+	).Scan(&p.CreatedAt, &p.UpdatedAt)
 }
 
 func (r *PlayerRepository) GetAll(ctx context.Context) ([]model.Player, error) {
 	query := `
-	SELECT id, first_name, last_name, date_of_birth, nationality, ranking, bio, profile_image_url, created_at
+	SELECT id, first_name, last_name, date_of_birth, nationality, ranking, bio, profile_image_url, created_at, updated_at
 	FROM players
 	ORDER BY ranking ASC
 	`
@@ -81,6 +81,7 @@ func (r *PlayerRepository) GetAll(ctx context.Context) ([]model.Player, error) {
 			&p.Bio,
 			&p.ProfileImageURL,
 			&p.CreatedAt,
+			&p.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err

@@ -1,4 +1,6 @@
-const BASE_URL = "http://localhost:8080/api/v1";
+import { API_V1_URL } from "@/lib/api-url";
+
+const BASE_URL = API_V1_URL;
 
 export const api = {
   getMatches: async () => {

@@ -20,7 +20,7 @@ func (r *MatchRepository) Create(ctx context.Context, m *model.Match) error {
 	query := `
 	INSERT INTO matches (tournament_id, player1_id, player2_id, court_id, round, scheduled_time, status)
 	VALUES ($1, $2, $3, $4, $5, $6, $7)
-	RETURNING id, created_at
+	RETURNING id, created_at, updated_at
 	`
 
 	return r.db.QueryRow(ctx, query,
@@ -31,7 +31,7 @@ func (r *MatchRepository) Create(ctx context.Context, m *model.Match) error {
 		m.Round,
 		m.ScheduledTime,
 		m.Status,
-	).Scan(&m.ID, &m.CreatedAt)
+	).Scan(&m.ID, &m.CreatedAt, &m.UpdatedAt)
 }
 
 func (r *MatchRepository) GetAll(ctx context.Context) ([]model.Match, error) {
@@ -48,6 +48,7 @@ func (r *MatchRepository) GetAll(ctx context.Context) ([]model.Match, error) {
 		m.winner_id,
 		m.umpire_id,
 		m.created_at,
+		m.updated_at,
 		COALESCE(p1.first_name || ' ' || p1.last_name, 'TBD') AS player1_name,
 		COALESCE(p2.first_name || ' ' || p2.last_name, 'TBD') AS player2_name
 	FROM matches m
@@ -78,6 +79,7 @@ func (r *MatchRepository) GetAll(ctx context.Context) ([]model.Match, error) {
 			&m.WinnerID,
 			&m.UmpireID,
 			&m.CreatedAt,
+			&m.UpdatedAt,
 			&m.Player1Name,
 			&m.Player2Name,
 		)

@@ -21,7 +21,7 @@ func (r *TournamentRepository) Create(ctx context.Context, t *model.Tournament) 
 	query := `
 	INSERT INTO tournaments (name, location, start_date, end_date, status, surface)
 	VALUES ($1, $2, $3, $4, $5, $6)
-	RETURNING id, created_at
+	RETURNING id, created_at, updated_at
 	`
 
 	err := r.db.QueryRow(ctx, query,
@@ -31,7 +31,7 @@ func (r *TournamentRepository) Create(ctx context.Context, t *model.Tournament) 
 		t.EndDate,
 		t.Status,
 		t.Surface,
-	).Scan(&t.ID, &t.CreatedAt)
+	).Scan(&t.ID, &t.CreatedAt, &t.UpdatedAt)
 
 	if err != nil {
 		log.Println("CREATE ERROR:", err)
@@ -43,7 +43,7 @@ func (r *TournamentRepository) Create(ctx context.Context, t *model.Tournament) 
 
 func (r *TournamentRepository) GetAll(ctx context.Context) ([]model.Tournament, error) {
 	query := `
-	SELECT id, name, location, start_date, end_date, status, created_at, surface
+	SELECT id, name, location, start_date, end_date, status, created_at, updated_at, surface
 	FROM tournaments
 	ORDER BY created_at DESC
 	`
@@ -69,6 +69,7 @@ func (r *TournamentRepository) GetAll(ctx context.Context) ([]model.Tournament, 
 			&t.EndDate,
 			&t.Status,
 			&t.CreatedAt,
+			&t.UpdatedAt,
 			&surface,
 		)
 

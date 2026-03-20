@@ -31,6 +31,11 @@ func main() {
 	db := config.NewDB(cfg)
 	defer db.Close()
 
+	// Run DB migrations on startup
+	if err := config.RunMigrations(db); err != nil {
+		panic(err)
+	}
+
 	// Initialize router
 	r := gin.Default()
 
@@ -44,6 +49,15 @@ func main() {
 		AllowCredentials: false,
 		MaxAge:           12 * time.Hour,
 	}))
+
+	// ✅ Root route (avoid 404 on service URL)
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"service": "kamp-backend",
+			"status":  "ok",
+			"health":  "/health",
+		})
+	})
 
 	// ✅ Health check
 	r.GET("/health", func(c *gin.Context) {

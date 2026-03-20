@@ -1,4 +1,6 @@
-const BASE_URL = "http://localhost:8000/api"; // adjust if needed
+import { API_V1_URL } from "@/lib/api-url";
+
+const BASE_URL = API_V1_URL;
 
 export const getPlayers = async () => {
   const res = await fetch(`${BASE_URL}/players`);

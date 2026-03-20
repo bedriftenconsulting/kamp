@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import ScoreCard from "@/components/matches/ScoreCard";
 import { Trophy } from "lucide-react";
+import { API_V1_URL } from "@/lib/api-url";
 
 export default function Results() {
   const [matches, setMatches] = useState<any[]>([]);
@@ -8,7 +9,7 @@ export default function Results() {
 
   const fetchMatches = async () => {
     try {
-      const res = await fetch("http://localhost:8080/api/v1/matches");
+      const res = await fetch(`${API_V1_URL}/matches`);
       const data = await res.json();
 
       // ✅ Transform backend → frontend

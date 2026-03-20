@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Users, TrendingUp } from "lucide-react";
+import { API_V1_URL } from "@/lib/api-url";
 
 export default function Players() {
   const [players, setPlayers] = useState<any[]>([]);
@@ -13,8 +14,8 @@ export default function Players() {
   const fetchData = async () => {
     try {
       const [playersRes, matchesRes] = await Promise.all([
-        fetch("http://localhost:8080/api/v1/players"),
-        fetch("http://localhost:8080/api/v1/matches"),
+        fetch(`${API_V1_URL}/players`),
+        fetch(`${API_V1_URL}/matches`),
       ]);
 
       const playersData = await playersRes.json();
