@@ -38,14 +38,19 @@ func main() {
 	db := config.NewDB(cfg)
 	defer db.Close()
 
-	// Run DB migrations on startup
-	if err := config.RunMigrations(db); err != nil {
-		panic(err)
-	}
+	// Run DB migrations only when explicitly enabled.
+	// Example: RUN_MIGRATIONS=true ./app
+	if strings.EqualFold(os.Getenv("RUN_MIGRATIONS"), "true") {
+		if err := config.RunMigrations(db); err != nil {
+			panic(err)
+		}
 
-	log.Println("========================================")
-	log.Println("✅✅✅ DATABASE MIGRATIONS COMPLETE ✅✅✅")
-	log.Println("========================================")
+		log.Println("========================================")
+		log.Println("✅✅✅ DATABASE MIGRATIONS COMPLETE ✅✅✅")
+		log.Println("========================================")
+	} else {
+		log.Println("⏭️  Skipping migrations (set RUN_MIGRATIONS=true to run them)")
+	}
 
 	// Initialize router
 	r := gin.Default()
