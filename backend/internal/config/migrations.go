@@ -13,16 +13,18 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const migrationTable = "app_schema_migrations"
+
 func RunMigrations(db *pgxpool.Pool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if _, err := db.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS schema_migrations (
+	if _, err := db.Exec(ctx, fmt.Sprintf(`
+		CREATE TABLE IF NOT EXISTS %s (
 			version TEXT PRIMARY KEY,
 			applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)
-	`); err != nil {
+	`, migrationTable)); err != nil {
 		return fmt.Errorf("create schema_migrations table: %w", err)
 	}
 
@@ -50,7 +52,7 @@ func RunMigrations(db *pgxpool.Pool) error {
 
 	for _, file := range files {
 		var exists bool
-		if err := db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version = $1)`, file).Scan(&exists); err != nil {
+		if err := db.QueryRow(ctx, fmt.Sprintf(`SELECT EXISTS(SELECT 1 FROM %s WHERE version = $1)`, migrationTable), file).Scan(&exists); err != nil {
 			return fmt.Errorf("check migration %s: %w", file, err)
 		}
 		if exists {
@@ -73,7 +75,7 @@ func RunMigrations(db *pgxpool.Pool) error {
 			return fmt.Errorf("apply migration %s: %w", file, err)
 		}
 
-		if _, err := tx.Exec(ctx, `INSERT INTO schema_migrations (version) VALUES ($1)`, file); err != nil {
+		if _, err := tx.Exec(ctx, fmt.Sprintf(`INSERT INTO %s (version) VALUES ($1)`, migrationTable), file); err != nil {
 			tx.Rollback(ctx)
 			return fmt.Errorf("record migration %s: %w", file, err)
 		}
