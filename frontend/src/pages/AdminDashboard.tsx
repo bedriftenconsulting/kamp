@@ -61,6 +61,16 @@ type Match = {
   court: string;
 };
 
+type Tournament = {
+  id: string;
+  name: string;
+  location: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  status: string;
+  surface?: string | null;
+};
+
 type PlayerForm = {
   id: string;
   first_name: string;
@@ -129,7 +139,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [matches, setMatches] = useState<Match[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
-  const [tournament, setTournament] = useState<any | null>(null);
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
 
   const [isPlayerDialogOpen, setIsPlayerDialogOpen] = useState(false);
   const [isEditingPlayer, setIsEditingPlayer] = useState(false);
@@ -161,6 +171,7 @@ export default function AdminDashboard() {
       const matchesData = await matchesRes.json();
       const playersData = await playersRes.json();
       const tournamentData = await tournamentRes.json();
+      console.log("DATA:", tournamentData);
 
       const formattedMatches: Match[] = matchesData.map((m: any) => ({
         id: m.id,
@@ -199,23 +210,25 @@ export default function AdminDashboard() {
         country: p.nationality,
       }));
 
-      const t = tournamentData[0];
-      const formattedTournament = t
-        ? {
-            name: t.name,
-            location: t.location,
-            venue: "Center Court",
-            surface: "Hard",
-            startDate: t.start_date,
-            endDate: t.end_date,
-            status: t.status,
-            categories: ["Singles", "Doubles"],
-          }
-        : null;
+      const tournamentList = Array.isArray(tournamentData)
+        ? tournamentData
+        : Array.isArray(tournamentData?.data)
+          ? tournamentData.data
+          : [];
+
+      const formattedTournaments: Tournament[] = tournamentList.map((t: any) => ({
+        id: t.id,
+        name: t.name,
+        location: t.location,
+        start_date: t.start_date,
+        end_date: t.end_date,
+        status: t.status,
+        surface: t.surface,
+      }));
 
       setMatches(formattedMatches);
       setPlayers(formattedPlayers);
-      setTournament(formattedTournament);
+      setTournaments(formattedTournaments);
       setMatchPage(1);
     } catch (error) {
       console.error("Error loading admin data:", error);
@@ -672,14 +685,45 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {activeTab === "tournament" && tournament && (
+        {activeTab === "tournament" && (
           <div>
-            <h1 className="text-2xl font-black mb-6">Tournament</h1>
-            <div className="bg-card border rounded-md p-6">
-              <div>{tournament.name}</div>
-              <div>{tournament.location}</div>
-              <div>{tournament.status}</div>
-            </div>
+            <h1 className="text-2xl font-black mb-6">Tournaments</h1>
+
+            {tournaments && tournaments.length > 0 ? (
+              <div className="bg-card border rounded-md overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="px-4 py-3 text-left">No.</th>
+                      <th className="px-4 py-3 text-left">Name</th>
+                      <th className="px-4 py-3 text-left">Location</th>
+                      <th className="px-4 py-3 text-left">Surface</th>
+                      <th className="px-4 py-3 text-left">Status</th>
+                      <th className="px-4 py-3 text-left">Dates</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tournaments.map((t, index) => (
+                      <tr key={t.id} className="border-t">
+                        <td className="px-4 py-3">{index + 1}</td>
+                        <td className="px-4 py-3">{t.name}</td>
+                        <td className="px-4 py-3">{t.location || "-"}</td>
+                        <td className="px-4 py-3">{t.surface || "-"}</td>
+                        <td className="px-4 py-3 capitalize">{t.status}</td>
+                        <td className="px-4 py-3">
+                          {t.start_date ? String(t.start_date).slice(0, 10) : "-"}
+                          {t.end_date ? ` to ${String(t.end_date).slice(0, 10)}` : ""}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="bg-card border rounded-md p-10 text-center text-muted-foreground">
+                No tournaments available
+              </div>
+            )}
           </div>
         )}
       </main>
