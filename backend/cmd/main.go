@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"net/http"
 	"time"
 
@@ -35,6 +36,10 @@ func main() {
 	if err := config.RunMigrations(db); err != nil {
 		panic(err)
 	}
+
+	log.Println("========================================")
+	log.Println("✅✅✅ DATABASE MIGRATIONS COMPLETE ✅✅✅")
+	log.Println("========================================")
 
 	// Initialize router
 	r := gin.Default()
