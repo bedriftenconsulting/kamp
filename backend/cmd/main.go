@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"kamp/internal/config"
@@ -27,6 +29,10 @@ import (
 func main() {
 	// Load config
 	cfg := config.LoadConfig()
+	debugHTTP := strings.EqualFold(os.Getenv("DEBUG_HTTP"), "true")
+
+	log.Printf("🚀 Starting kamp-backend (port=%s, gin_mode=%s, debug_http=%t)", cfg.Port, gin.Mode(), debugHTTP)
+	log.Printf("🌐 CORS allowed origins: %v", cfg.CORSAllowedOrigins)
 
 	// Connect DB
 	db := config.NewDB(cfg)
@@ -43,6 +49,24 @@ func main() {
 
 	// Initialize router
 	r := gin.Default()
+
+	if debugHTTP {
+		// Temporary request-level diagnostics. Toggle off by setting DEBUG_HTTP=false.
+		r.Use(func(c *gin.Context) {
+			start := time.Now()
+			c.Next()
+			log.Printf(
+				"[DEBUG_HTTP] %s %s -> %d (%s) ip=%s ua=%q errors=%q",
+				c.Request.Method,
+				c.Request.URL.Path,
+				c.Writer.Status(),
+				time.Since(start),
+				c.ClientIP(),
+				c.Request.UserAgent(),
+				c.Errors.String(),
+			)
+		})
+	}
 
 	// ✅ ENABLE CORS (Render/Vercel + local)
 	r.Use(cors.New(cors.Config{
@@ -62,6 +86,9 @@ func main() {
 			"status":  "ok",
 			"health":  "/health",
 		})
+	})
+	r.HEAD("/", func(c *gin.Context) {
+		c.Status(http.StatusOK)
 	})
 
 	// ✅ Health check
