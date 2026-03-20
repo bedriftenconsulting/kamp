@@ -146,6 +146,7 @@ func main() {
 		api.POST("/tournaments", tournamentHdl.CreateTournament)
 		api.GET("/tournaments", tournamentHdl.GetTournaments)
 		api.PUT("/tournaments/:id", tournamentHdl.UpdateTournament)
+		api.DELETE("/tournaments/:id", tournamentHdl.DeleteTournament)
 
 		// Player
 		api.POST("/players", playerHdl.CreatePlayer)
@@ -162,6 +163,7 @@ func main() {
 
 		// Scoring
 		api.POST("/matches/:id/point", scoringHdl.AddPoint)
+		api.GET("/matches/:id/state", scoringHdl.GetMatchState)
 	}
 
 	// ✅ Start WebSocket listener

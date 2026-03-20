@@ -41,6 +41,9 @@ func (h *TournamentHandler) GetTournaments(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	if tournaments == nil {
+		tournaments = make([]model.Tournament, 0)
+	}
 
 	c.JSON(http.StatusOK, tournaments)
 }
@@ -66,4 +69,19 @@ func (h *TournamentHandler) UpdateTournament(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, input)
+}
+
+func (h *TournamentHandler) DeleteTournament(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tournament id is required"})
+		return
+	}
+
+	if err := h.service.DeleteTournament(c, id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "tournament deleted"})
 }

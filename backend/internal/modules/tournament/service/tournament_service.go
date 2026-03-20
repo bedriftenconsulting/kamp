@@ -32,3 +32,7 @@ func (s *TournamentService) UpdateTournament(ctx context.Context, t *model.Tourn
 	}
 	return s.repo.Update(ctx, t)
 }
+
+func (s *TournamentService) DeleteTournament(ctx context.Context, id string) error {
+	return s.repo.Delete(ctx, id)
+}

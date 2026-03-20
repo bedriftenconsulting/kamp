@@ -119,3 +119,8 @@ func (r *TournamentRepository) Update(ctx context.Context, t *model.Tournament) 
 		t.ID,
 	).Scan(&t.CreatedAt, &t.UpdatedAt)
 }
+
+func (r *TournamentRepository) Delete(ctx context.Context, id string) error {
+	_, err := r.db.Exec(ctx, `DELETE FROM tournaments WHERE id = $1`, id)
+	return err
+}

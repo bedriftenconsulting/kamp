@@ -45,3 +45,15 @@ func (h *ScoringHandler) AddPoint(c *gin.Context) {
 
 	c.JSON(http.StatusOK, state)
 }
+
+func (h *ScoringHandler) GetMatchState(c *gin.Context) {
+	matchID := c.Param("id")
+
+	state, err := h.service.GetMatchState(c, matchID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, state)
+}

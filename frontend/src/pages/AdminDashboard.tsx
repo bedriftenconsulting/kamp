@@ -93,6 +93,16 @@ type MatchForm = {
   scheduled_time: string;
 };
 
+type TournamentForm = {
+  id: string;
+  name: string;
+  location: string;
+  start_date: string;
+  end_date: string;
+  status: string;
+  surface: string;
+};
+
 type CompleteForm = {
   match_id: string;
   player1_id: string;
@@ -135,6 +145,16 @@ const emptyCompleteForm: CompleteForm = {
   player2_games: "",
 };
 
+const emptyTournamentForm: TournamentForm = {
+  id: "",
+  name: "",
+  location: "",
+  start_date: "",
+  end_date: "",
+  status: "scheduled",
+  surface: "",
+};
+
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [matches, setMatches] = useState<Match[]>([]);
@@ -156,6 +176,12 @@ export default function AdminDashboard() {
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
   const [completeForm, setCompleteForm] = useState<CompleteForm>(emptyCompleteForm);
   const [isCompletingMatch, setIsCompletingMatch] = useState(false);
+
+  const [isTournamentDialogOpen, setIsTournamentDialogOpen] = useState(false);
+  const [isEditingTournament, setIsEditingTournament] = useState(false);
+  const [tournamentForm, setTournamentForm] = useState<TournamentForm>(emptyTournamentForm);
+  const [isSavingTournament, setIsSavingTournament] = useState(false);
+  const [deletingTournamentId, setDeletingTournamentId] = useState<string | null>(null);
 
   const [matchPage, setMatchPage] = useState(1);
   const matchesPerPage = 20;
@@ -485,6 +511,89 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleOpenAddTournament = () => {
+    setIsEditingTournament(false);
+    setTournamentForm(emptyTournamentForm);
+    setIsTournamentDialogOpen(true);
+  };
+
+  const handleOpenEditTournament = (t: Tournament) => {
+    setIsEditingTournament(true);
+    setTournamentForm({
+      id: t.id,
+      name: t.name || "",
+      location: t.location || "",
+      start_date: t.start_date ? String(t.start_date).slice(0, 10) : "",
+      end_date: t.end_date ? String(t.end_date).slice(0, 10) : "",
+      status: t.status || "scheduled",
+      surface: t.surface || "",
+    });
+    setIsTournamentDialogOpen(true);
+  };
+
+  const handleSaveTournament = async () => {
+    if (!tournamentForm.name) {
+      alert("Tournament name is required.");
+      return;
+    }
+
+    setIsSavingTournament(true);
+    try {
+      const payload = {
+        name: tournamentForm.name,
+        location: tournamentForm.location,
+        start_date: tournamentForm.start_date ? `${tournamentForm.start_date}T00:00:00Z` : undefined,
+        end_date: tournamentForm.end_date ? `${tournamentForm.end_date}T00:00:00Z` : undefined,
+        status: tournamentForm.status || "scheduled",
+        surface: tournamentForm.surface || undefined,
+      };
+
+      const url = isEditingTournament
+        ? `${API_V1_URL}/tournaments/${tournamentForm.id}`
+        : `${API_V1_URL}/tournaments`;
+      const method = isEditingTournament ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to save tournament");
+      }
+
+      setIsTournamentDialogOpen(false);
+      setTournamentForm(emptyTournamentForm);
+      await fetchData();
+    } catch (error: any) {
+      alert(error?.message || "Failed to save tournament");
+    } finally {
+      setIsSavingTournament(false);
+    }
+  };
+
+  const handleDeleteTournament = async (id: string) => {
+    if (!confirm("Delete this tournament?")) return;
+
+    setDeletingTournamentId(id);
+    try {
+      const res = await fetch(`${API_V1_URL}/tournaments/${id}`, { method: "DELETE" });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to delete tournament");
+      }
+
+      await fetchData();
+    } catch (error: any) {
+      alert(error?.message || "Failed to delete tournament");
+    } finally {
+      setDeletingTournamentId(null);
+    }
+  };
+
   const liveCount = matches.filter((m) => m.status === "live").length;
   const completedCount = matches.filter((m) => m.status === "completed").length;
   const upcomingCount = matches.filter((m) => m.status === "scheduled").length;
@@ -688,32 +797,49 @@ export default function AdminDashboard() {
 
         {activeTab === "tournament" && (
           <div>
-            <h1 className="text-2xl font-black mb-6">Tournaments</h1>
+            <div className="mb-6 flex items-center justify-between">
+              <h1 className="text-2xl font-black">Tournaments</h1>
+              <Button onClick={handleOpenAddTournament} className="gap-2">
+                <Plus size={16} />
+                Add Tournament
+              </Button>
+            </div>
 
             {tournaments && tournaments.length > 0 ? (
               <div className="bg-card border rounded-md overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50">
                     <tr>
-                      <th className="px-4 py-3 text-left">No.</th>
+                      <th className="px-4 py-3 text-left">Tournament ID</th>
                       <th className="px-4 py-3 text-left">Name</th>
                       <th className="px-4 py-3 text-left">Location</th>
-                      <th className="px-4 py-3 text-left">Surface</th>
-                      <th className="px-4 py-3 text-left">Status</th>
-                      <th className="px-4 py-3 text-left">Dates</th>
+                      <th className="px-4 py-3 text-left">Start Date</th>
+                      <th className="px-4 py-3 text-left">End Date</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {tournaments.map((t, index) => (
+                    {tournaments.map((t) => (
                       <tr key={t.id} className="border-t">
-                        <td className="px-4 py-3">{index + 1}</td>
+                        <td className="px-4 py-3">{t.id}</td>
                         <td className="px-4 py-3">{t.name}</td>
                         <td className="px-4 py-3">{t.location || "-"}</td>
-                        <td className="px-4 py-3">{t.surface || "-"}</td>
-                        <td className="px-4 py-3 capitalize">{t.status}</td>
+                        <td className="px-4 py-3">{t.start_date ? String(t.start_date).slice(0, 10) : "-"}</td>
+                        <td className="px-4 py-3">{t.end_date ? String(t.end_date).slice(0, 10) : "-"}</td>
                         <td className="px-4 py-3">
-                          {t.start_date ? String(t.start_date).slice(0, 10) : "-"}
-                          {t.end_date ? ` to ${String(t.end_date).slice(0, 10)}` : ""}
+                          <div className="flex items-center justify-end gap-2">
+                            <Button variant="outline" size="icon" onClick={() => handleOpenEditTournament(t)}>
+                              <Pencil size={14} />
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              onClick={() => handleDeleteTournament(t.id)}
+                              disabled={deletingTournamentId === t.id}
+                            >
+                              <Trash2 size={14} />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -972,6 +1098,97 @@ export default function AdminDashboard() {
             </Button>
             <Button onClick={handleCompleteMatch} disabled={isCompletingMatch}>
               {isCompletingMatch ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isTournamentDialogOpen} onOpenChange={setIsTournamentDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{isEditingTournament ? "Edit Tournament" : "Add Tournament"}</DialogTitle>
+          </DialogHeader>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="tournament-id">Tournament ID</Label>
+              <Input
+                id="tournament-id"
+                value={tournamentForm.id}
+                disabled
+                placeholder="Auto-generated"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tournament-name">Name</Label>
+              <Input
+                id="tournament-name"
+                value={tournamentForm.name}
+                onChange={(e) => setTournamentForm((prev) => ({ ...prev, name: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tournament-location">Location</Label>
+              <Input
+                id="tournament-location"
+                value={tournamentForm.location}
+                onChange={(e) => setTournamentForm((prev) => ({ ...prev, location: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tournament-start-date">Start Date</Label>
+              <Input
+                id="tournament-start-date"
+                type="date"
+                value={tournamentForm.start_date}
+                onChange={(e) => setTournamentForm((prev) => ({ ...prev, start_date: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tournament-end-date">End Date</Label>
+              <Input
+                id="tournament-end-date"
+                type="date"
+                value={tournamentForm.end_date}
+                onChange={(e) => setTournamentForm((prev) => ({ ...prev, end_date: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tournament-status">Status</Label>
+              <select
+                id="tournament-status"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={tournamentForm.status}
+                onChange={(e) => setTournamentForm((prev) => ({ ...prev, status: e.target.value }))}
+              >
+                <option value="scheduled">scheduled</option>
+                <option value="live">live</option>
+                <option value="completed">completed</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tournament-surface">Surface</Label>
+              <Input
+                id="tournament-surface"
+                value={tournamentForm.surface}
+                onChange={(e) => setTournamentForm((prev) => ({ ...prev, surface: e.target.value }))}
+                placeholder="e.g. hard, clay, grass"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setIsTournamentDialogOpen(false)} disabled={isSavingTournament}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveTournament} disabled={isSavingTournament}>
+              {isSavingTournament ? "Saving..." : "Save"}
             </Button>
           </div>
         </DialogContent>

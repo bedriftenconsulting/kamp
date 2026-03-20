@@ -8,13 +8,19 @@ export const api = {
     return res.json();
   },
 
+  getMatchState: async (matchId: string) => {
+    const res = await fetch(`${BASE_URL}/matches/${matchId}/state`);
+    return res.json();
+  },
+
   addPoint: async (matchId: string, player: number) => {
-    await fetch(`${BASE_URL}/matches/${matchId}/point`, {
+    const res = await fetch(`${BASE_URL}/matches/${matchId}/point`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ player }),
     });
+    return res.json();
   },
 };

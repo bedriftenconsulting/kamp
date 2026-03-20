@@ -18,16 +18,14 @@ export const ScoreBoard = ({ matchId }: Props) => {
 
   // Initial load
   useEffect(() => {
-    api.getMatches().then((matches) => {
-      const match = matches.find((m: any) => m.id === matchId);
-      if (match) {
-        setState(match);
-      }
+    api.getMatchState(matchId).then((data) => {
+      setState(data);
     });
   }, [matchId]);
 
-  const handleScore = (player: number) => {
-    api.addPoint(matchId, player);
+  const handleScore = async (player: number) => {
+    const data = await api.addPoint(matchId, player);
+    setState(data);
   };
 
   if (!state) return <div>Loading...</div>;

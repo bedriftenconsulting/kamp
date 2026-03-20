@@ -24,6 +24,9 @@ func NewScoringService(
 }
 
 func (s *ScoringService) AddPoint(ctx context.Context, matchID string, player int) (map[string]interface{}, error) {
+	if err := s.repo.EnsureMatchState(ctx, matchID); err != nil {
+		return nil, err
+	}
 
 	state, err := s.repo.GetMatchState(ctx, matchID)
 	if err != nil {
@@ -125,6 +128,14 @@ func (s *ScoringService) AddPoint(ctx context.Context, matchID string, player in
 	if matchFinished {
 		// TODO: Replace with actual player IDs
 		_ = s.matchRepo.FinishMatch(ctx, matchID, winner)
+	}
+
+	return s.repo.GetMatchState(ctx, matchID)
+}
+
+func (s *ScoringService) GetMatchState(ctx context.Context, matchID string) (map[string]interface{}, error) {
+	if err := s.repo.EnsureMatchState(ctx, matchID); err != nil {
+		return nil, err
 	}
 
 	return s.repo.GetMatchState(ctx, matchID)
