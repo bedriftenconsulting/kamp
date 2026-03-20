@@ -4,21 +4,25 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func NewDB(cfg *Config) *pgxpool.Pool {
-	dsn := fmt.Sprintf(
-		"postgres://%s:%s@%s:%s/%s?sslmode=%s",
-		cfg.DBUser,
-		cfg.DBPassword,
-		cfg.DBHost,
-		cfg.DBPort,
-		cfg.DBName,
-		cfg.DBSSLMode,
-	)
+	dsn := strings.TrimSpace(cfg.DatabaseURL)
+	if dsn == "" {
+		dsn = fmt.Sprintf(
+			"postgres://%s:%s@%s:%s/%s?sslmode=%s",
+			cfg.DBUser,
+			cfg.DBPassword,
+			cfg.DBHost,
+			cfg.DBPort,
+			cfg.DBName,
+			cfg.DBSSLMode,
+		)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -28,7 +32,6 @@ func NewDB(cfg *Config) *pgxpool.Pool {
 		log.Fatalf("Unable to connect to database: %v", err)
 	}
 
-	// Test connection
 	err = db.Ping(ctx)
 	if err != nil {
 		log.Fatalf("Database ping failed: %v", err)

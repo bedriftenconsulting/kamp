@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"time"
 
 	"kamp/internal/config"
 	matchHandler "kamp/internal/modules/match/handler"
@@ -19,7 +20,6 @@ import (
 	tournamentService "kamp/internal/modules/tournament/service"
 
 	"github.com/gin-contrib/cors"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -33,6 +33,17 @@ func main() {
 
 	// Initialize router
 	r := gin.Default()
+
+	// ✅ ENABLE CORS (Render/Vercel + local)
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     cfg.CORSAllowedOrigins,
+		AllowWildcard:    true,
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Content-Length", "Accept", "Authorization", "X-Requested-With"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: false,
+		MaxAge:           12 * time.Hour,
+	}))
 
 	// ✅ Health check
 	r.GET("/health", func(c *gin.Context) {
@@ -54,9 +65,6 @@ func main() {
 	r.GET("/ws", func(c *gin.Context) {
 		realtime.HandleConnections(c.Writer, c.Request)
 	})
-
-	// ✅ ENABLE CORS (FIX)
-	r.Use(cors.Default())
 
 	// =============================
 	// Initialize modules (CLEAN)
