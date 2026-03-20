@@ -173,7 +173,14 @@ export default function AdminDashboard() {
       const tournamentData = await tournamentRes.json();
       console.log("DATA:", tournamentData);
 
-      const formattedMatches: Match[] = matchesData.map((m: any) => ({
+      const toList = (payload: any) =>
+        Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
+
+      const matchesList = toList(matchesData);
+      const playersList = toList(playersData);
+      const tournamentList = toList(tournamentData);
+
+      const formattedMatches: Match[] = matchesList.map((m: any) => ({
         id: m.id,
         tournament_id: m.tournament_id,
         player1_id: m.player1_id,
@@ -197,7 +204,7 @@ export default function AdminDashboard() {
         court: m.court_id || "-",
       }));
 
-      const formattedPlayers: Player[] = playersData.map((p: any) => ({
+      const formattedPlayers: Player[] = playersList.map((p: any) => ({
         id: p.id,
         first_name: p.first_name,
         last_name: p.last_name,
@@ -209,12 +216,6 @@ export default function AdminDashboard() {
         name: `${p.first_name} ${p.last_name}`,
         country: p.nationality,
       }));
-
-      const tournamentList = Array.isArray(tournamentData)
-        ? tournamentData
-        : Array.isArray(tournamentData?.data)
-          ? tournamentData.data
-          : [];
 
       const formattedTournaments: Tournament[] = tournamentList.map((t: any) => ({
         id: t.id,
