@@ -1,0 +1,2 @@
+ALTER TABLE tournaments
+ADD COLUMN IF NOT EXISTS surface VARCHAR(50);
