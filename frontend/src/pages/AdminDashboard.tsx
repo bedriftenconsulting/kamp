@@ -36,6 +36,9 @@ type Player = {
   last_name: string;
   date_of_birth: string;
   nationality: string;
+  gender: string;
+  age: number;
+  tennis_level: string;
   ranking: number;
   bio: string;
   profile_image_url: string;
@@ -77,6 +80,9 @@ type PlayerForm = {
   last_name: string;
   date_of_birth: string;
   nationality: string;
+  gender: string;
+  age: string;
+  tennis_level: string;
   ranking: string;
   bio: string;
   profile_image_url: string;
@@ -119,6 +125,9 @@ const emptyPlayerForm: PlayerForm = {
   last_name: "",
   date_of_birth: "",
   nationality: "",
+  gender: "",
+  age: "",
+  tennis_level: "",
   ranking: "",
   bio: "",
   profile_image_url: "",
@@ -236,6 +245,9 @@ export default function AdminDashboard() {
         last_name: p.last_name,
         date_of_birth: p.date_of_birth,
         nationality: p.nationality,
+        gender: p.gender || "",
+        age: Number(p.age || 0),
+        tennis_level: p.tennis_level || "",
         ranking: p.ranking,
         bio: p.bio || "",
         profile_image_url: p.profile_image_url || "",
@@ -286,6 +298,9 @@ export default function AdminDashboard() {
       last_name: player.last_name,
       date_of_birth: player.date_of_birth ? String(player.date_of_birth).slice(0, 10) : "",
       nationality: player.nationality,
+      gender: player.gender || "",
+      age: String(player.age ?? ""),
+      tennis_level: player.tennis_level || "",
       ranking: String(player.ranking ?? ""),
       bio: player.bio || "",
       profile_image_url: player.profile_image_url || "",
@@ -296,10 +311,7 @@ export default function AdminDashboard() {
   const handleSavePlayer = async () => {
     if (
       !playerForm.first_name ||
-      !playerForm.last_name ||
-      !playerForm.date_of_birth ||
-      !playerForm.nationality ||
-      !playerForm.ranking
+      !playerForm.last_name
     ) {
       alert("Please fill all required fields.");
       return;
@@ -312,9 +324,12 @@ export default function AdminDashboard() {
         id: playerForm.id || undefined,
         first_name: playerForm.first_name,
         last_name: playerForm.last_name,
-        date_of_birth: `${playerForm.date_of_birth}T00:00:00Z`,
+        date_of_birth: playerForm.date_of_birth ? `${playerForm.date_of_birth}T00:00:00Z` : undefined,
         nationality: playerForm.nationality,
-        ranking: Number(playerForm.ranking),
+        gender: playerForm.gender,
+        age: Number(playerForm.age || 0),
+        tennis_level: playerForm.tennis_level,
+        ranking: playerForm.ranking ? Number(playerForm.ranking) : 0,
         bio: playerForm.bio,
         profile_image_url: playerForm.profile_image_url,
       };
@@ -760,8 +775,9 @@ export default function AdminDashboard() {
                   <tr>
                     <th className="px-4 py-3 text-left">No.</th>
                     <th className="px-4 py-3 text-left">Name</th>
-                    <th className="px-4 py-3 text-left">Country</th>
-                    <th className="px-4 py-3 text-left">Ranking</th>
+                    <th className="px-4 py-3 text-left">Gender</th>
+                    <th className="px-4 py-3 text-left">Age</th>
+                    <th className="px-4 py-3 text-left">Tennis Level</th>
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -770,8 +786,9 @@ export default function AdminDashboard() {
                     <tr key={p.id} className="border-t">
                       <td className="px-4 py-3">{index + 1}</td>
                       <td className="px-4 py-3">{p.name}</td>
-                      <td className="px-4 py-3">{p.country}</td>
-                      <td className="px-4 py-3">#{p.ranking}</td>
+                      <td className="px-4 py-3">{p.gender || "-"}</td>
+                      <td className="px-4 py-3">{p.age || "-"}</td>
+                      <td className="px-4 py-3">{p.tennis_level || "-"}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-2">
                           <Button variant="outline" size="icon" onClick={() => handleOpenEditPlayer(p)}>
@@ -917,6 +934,34 @@ export default function AdminDashboard() {
                 type="number"
                 value={playerForm.ranking}
                 onChange={(e) => setPlayerForm((prev) => ({ ...prev, ranking: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="player-gender">Gender</Label>
+              <Input
+                id="player-gender"
+                value={playerForm.gender}
+                onChange={(e) => setPlayerForm((prev) => ({ ...prev, gender: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="player-age">Age</Label>
+              <Input
+                id="player-age"
+                type="number"
+                value={playerForm.age}
+                onChange={(e) => setPlayerForm((prev) => ({ ...prev, age: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="player-tennis-level">Tennis Level</Label>
+              <Input
+                id="player-tennis-level"
+                value={playerForm.tennis_level}
+                onChange={(e) => setPlayerForm((prev) => ({ ...prev, tennis_level: e.target.value }))}
               />
             </div>
 

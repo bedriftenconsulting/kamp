@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"strings"
+	"time"
 
 	"kamp/internal/modules/player/model"
 
@@ -20,16 +21,19 @@ func NewPlayerRepository(db *pgxpool.Pool) *PlayerRepository {
 func (r *PlayerRepository) Create(ctx context.Context, p *model.Player) error {
 	if strings.TrimSpace(p.ID) == "" {
 		query := `
-		INSERT INTO players (first_name, last_name, date_of_birth, nationality, ranking, bio, profile_image_url)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO players (first_name, last_name, date_of_birth, nationality, gender, age, tennis_level, ranking, bio, profile_image_url)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING id, created_at, updated_at
 		`
 
 		return r.db.QueryRow(ctx, query,
 			p.FirstName,
 			p.LastName,
-			p.DateOfBirth,
+			nullableDate(p.DateOfBirth),
 			p.Nationality,
+			p.Gender,
+			p.Age,
+			p.TennisLevel,
 			p.Ranking,
 			p.Bio,
 			p.ProfileImageURL,
@@ -37,8 +41,8 @@ func (r *PlayerRepository) Create(ctx context.Context, p *model.Player) error {
 	}
 
 	query := `
-	INSERT INTO players (id, first_name, last_name, date_of_birth, nationality, ranking, bio, profile_image_url)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	INSERT INTO players (id, first_name, last_name, date_of_birth, nationality, gender, age, tennis_level, ranking, bio, profile_image_url)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	RETURNING created_at, updated_at
 	`
 
@@ -46,8 +50,11 @@ func (r *PlayerRepository) Create(ctx context.Context, p *model.Player) error {
 		p.ID,
 		p.FirstName,
 		p.LastName,
-		p.DateOfBirth,
+		nullableDate(p.DateOfBirth),
 		p.Nationality,
+		p.Gender,
+		p.Age,
+		p.TennisLevel,
 		p.Ranking,
 		p.Bio,
 		p.ProfileImageURL,
@@ -56,7 +63,7 @@ func (r *PlayerRepository) Create(ctx context.Context, p *model.Player) error {
 
 func (r *PlayerRepository) GetAll(ctx context.Context) ([]model.Player, error) {
 	query := `
-	SELECT id, first_name, last_name, date_of_birth, nationality, ranking, bio, profile_image_url, created_at, updated_at
+	SELECT id, first_name, last_name, date_of_birth, nationality, gender, age, tennis_level, ranking, bio, profile_image_url, created_at, updated_at
 	FROM players
 	ORDER BY ranking ASC
 	`
@@ -71,12 +78,16 @@ func (r *PlayerRepository) GetAll(ctx context.Context) ([]model.Player, error) {
 
 	for rows.Next() {
 		var p model.Player
+		var dob *time.Time
 		err := rows.Scan(
 			&p.ID,
 			&p.FirstName,
 			&p.LastName,
-			&p.DateOfBirth,
+			&dob,
 			&p.Nationality,
+			&p.Gender,
+			&p.Age,
+			&p.TennisLevel,
 			&p.Ranking,
 			&p.Bio,
 			&p.ProfileImageURL,
@@ -85,6 +96,9 @@ func (r *PlayerRepository) GetAll(ctx context.Context) ([]model.Player, error) {
 		)
 		if err != nil {
 			return nil, err
+		}
+		if dob != nil {
+			p.DateOfBirth = *dob
 		}
 		players = append(players, p)
 	}
@@ -103,18 +117,24 @@ func (r *PlayerRepository) Update(ctx context.Context, p *model.Player) error {
 	    last_name = $2,
 	    date_of_birth = $3,
 	    nationality = $4,
-	    ranking = $5,
-	    bio = $6,
-	    profile_image_url = $7,
+	    gender = $5,
+	    age = $6,
+	    tennis_level = $7,
+	    ranking = $8,
+	    bio = $9,
+	    profile_image_url = $10,
 	    updated_at = CURRENT_TIMESTAMP
-	WHERE id = $8
+	WHERE id = $11
 	`
 
 	_, err := r.db.Exec(ctx, query,
 		p.FirstName,
 		p.LastName,
-		p.DateOfBirth,
+		nullableDate(p.DateOfBirth),
 		p.Nationality,
+		p.Gender,
+		p.Age,
+		p.TennisLevel,
 		p.Ranking,
 		p.Bio,
 		p.ProfileImageURL,
@@ -126,4 +146,11 @@ func (r *PlayerRepository) Update(ctx context.Context, p *model.Player) error {
 func (r *PlayerRepository) Delete(ctx context.Context, id string) error {
 	_, err := r.db.Exec(ctx, `DELETE FROM players WHERE id = $1`, id)
 	return err
+}
+
+func nullableDate(t time.Time) interface{} {
+	if t.IsZero() {
+		return nil
+	}
+	return t
 }

@@ -1,0 +1,4 @@
+ALTER TABLE players
+  DROP COLUMN IF EXISTS tennis_level,
+  DROP COLUMN IF EXISTS age,
+  DROP COLUMN IF EXISTS gender;

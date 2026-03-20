@@ -19,9 +19,12 @@ type playerRequest struct {
 	ID              string `json:"id"`
 	FirstName       string `json:"first_name" binding:"required"`
 	LastName        string `json:"last_name" binding:"required"`
-	DateOfBirth     string `json:"date_of_birth" binding:"required"`
-	Nationality     string `json:"nationality" binding:"required"`
-	Ranking         int    `json:"ranking" binding:"required"`
+	DateOfBirth     string `json:"date_of_birth"`
+	Nationality     string `json:"nationality"`
+	Gender          string `json:"gender"`
+	Age             int    `json:"age"`
+	TennisLevel     string `json:"tennis_level"`
+	Ranking         int    `json:"ranking"`
 	Bio             string `json:"bio"`
 	ProfileImageURL string `json:"profile_image_url"`
 }
@@ -119,6 +122,9 @@ func buildPlayerFromRequest(input playerRequest) (*model.Player, error) {
 		LastName:        input.LastName,
 		DateOfBirth:     dob,
 		Nationality:     input.Nationality,
+		Gender:          input.Gender,
+		Age:             input.Age,
+		TennisLevel:     input.TennisLevel,
 		Ranking:         input.Ranking,
 		Bio:             input.Bio,
 		ProfileImageURL: input.ProfileImageURL,
@@ -126,6 +132,10 @@ func buildPlayerFromRequest(input playerRequest) (*model.Player, error) {
 }
 
 func parseFlexibleDate(v string) (time.Time, error) {
+	if strings.TrimSpace(v) == "" {
+		return time.Time{}, nil
+	}
+
 	if t, err := time.Parse("2006-01-02", v); err == nil {
 		return t, nil
 	}
