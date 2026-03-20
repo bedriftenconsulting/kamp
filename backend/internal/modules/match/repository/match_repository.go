@@ -63,7 +63,7 @@ func (r *MatchRepository) GetAll(ctx context.Context) ([]model.Match, error) {
 	}
 	defer rows.Close()
 
-	var matches []model.Match
+	matches := make([]model.Match, 0)
 
 	for rows.Next() {
 		var m model.Match
@@ -87,6 +87,10 @@ func (r *MatchRepository) GetAll(ctx context.Context) ([]model.Match, error) {
 			return nil, err
 		}
 		matches = append(matches, m)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return matches, nil

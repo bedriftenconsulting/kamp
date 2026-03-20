@@ -55,7 +55,7 @@ func (r *TournamentRepository) GetAll(ctx context.Context) ([]model.Tournament, 
 	}
 	defer rows.Close()
 
-	var tournaments []model.Tournament
+	tournaments := make([]model.Tournament, 0)
 
 	for rows.Next() {
 		var t model.Tournament

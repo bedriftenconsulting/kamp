@@ -21,14 +21,19 @@ export default function Index() {
 
         const matchesData = await matchesRes.json();
         const tournamentData = await tournamentRes.json();
+        const toList = (payload: any) =>
+          Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
+        const matchesList = toList(matchesData);
+        const tournamentList = toList(tournamentData);
 
         // ✅ Ensure tournament exists
-        if (!tournamentData || tournamentData.length === 0) {
+        if (tournamentList.length === 0) {
           setTournament(null);
+          setMatches([]);
           return;
         }
 
-        const t = tournamentData[0];
+        const t = tournamentList[0];
 
         // ✅ Transform tournament
         const formattedTournament = {
@@ -42,7 +47,7 @@ export default function Index() {
 
 
         // ✅ Transform matches (FIXED STRUCTURE)
-        const formattedMatches = matchesData.map((m: any) => ({
+        const formattedMatches = matchesList.map((m: any) => ({
           id: m.id,
           status: m.status,
           player1: {
@@ -69,8 +74,10 @@ export default function Index() {
   }, []);
 
   // ✅ Correct filtering
-  const liveMatches = matches.filter((m) => m.status === "live");
-  const upcomingMatches = matches.filter(
+  const liveMatches = (Array.isArray(matches) ? matches : []).filter(
+    (m) => m.status === "live"
+  );
+  const upcomingMatches = (Array.isArray(matches) ? matches : []).filter(
     (m) => m.status === "scheduled"
   );
 

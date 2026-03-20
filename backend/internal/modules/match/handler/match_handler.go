@@ -67,6 +67,9 @@ func (h *MatchHandler) GetMatches(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	if matches == nil {
+		matches = make([]model.Match, 0)
+	}
 
 	c.JSON(http.StatusOK, matches)
 }

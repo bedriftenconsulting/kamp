@@ -57,6 +57,9 @@ func (h *PlayerHandler) GetPlayers(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	if players == nil {
+		players = make([]model.Player, 0)
+	}
 
 	c.JSON(http.StatusOK, players)
 }

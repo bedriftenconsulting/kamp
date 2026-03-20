@@ -67,7 +67,7 @@ func (r *PlayerRepository) GetAll(ctx context.Context) ([]model.Player, error) {
 	}
 	defer rows.Close()
 
-	var players []model.Player
+	players := make([]model.Player, 0)
 
 	for rows.Next() {
 		var p model.Player
@@ -87,6 +87,10 @@ func (r *PlayerRepository) GetAll(ctx context.Context) ([]model.Player, error) {
 			return nil, err
 		}
 		players = append(players, p)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return players, nil
