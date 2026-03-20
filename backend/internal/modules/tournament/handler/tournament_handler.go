@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	"kamp/internal/modules/tournament/model"
 	"kamp/internal/modules/tournament/service"
@@ -42,4 +43,27 @@ func (h *TournamentHandler) GetTournaments(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, tournaments)
+}
+
+func (h *TournamentHandler) UpdateTournament(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tournament id is required"})
+		return
+	}
+
+	var input model.Tournament
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	input.ID = id
+
+	if err := h.service.UpdateTournament(c, &input); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, input)
 }

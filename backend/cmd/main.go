@@ -118,6 +118,7 @@ func main() {
 		// Tournament
 		api.POST("/tournaments", tournamentHdl.CreateTournament)
 		api.GET("/tournaments", tournamentHdl.GetTournaments)
+		api.PUT("/tournaments/:id", tournamentHdl.UpdateTournament)
 
 		// Player
 		api.POST("/players", playerHdl.CreatePlayer)

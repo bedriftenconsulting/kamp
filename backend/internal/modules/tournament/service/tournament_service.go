@@ -25,3 +25,10 @@ func (s *TournamentService) CreateTournament(ctx context.Context, t *model.Tourn
 func (s *TournamentService) GetTournaments(ctx context.Context) ([]model.Tournament, error) {
 	return s.repo.GetAll(ctx)
 }
+
+func (s *TournamentService) UpdateTournament(ctx context.Context, t *model.Tournament) error {
+	if t.Status == "" {
+		t.Status = "scheduled"
+	}
+	return s.repo.Update(ctx, t)
+}
