@@ -13,23 +13,34 @@ export default function Results() {
       const data = await res.json();
 
       // ✅ Transform backend → frontend
-      const formattedMatches = data.map((m: any) => ({
-        id: m.id,
-        status: m.status,
-        round: m.round,
-        court: "Court 1", // temp
-        scheduledTime: m.scheduled_time,
-        player1: {
-          id: m.player1_id,
-          name: m.player1_name,
-        },
-        player2: {
-          id: m.player2_id,
-          name: m.player2_name,
-        },
-        winner: m.winner_id,
-        score: m.score || null, // ✅ supports your JSONB scores
-      }));
+      const formattedMatches = data.map((m: any) => {
+        const hasFinalScore =
+          typeof m.player1_score === "number" && typeof m.player2_score === "number";
+
+        return {
+          id: m.id,
+          status: m.status,
+          round: m.round,
+          court: "Court 1", // temp
+          scheduledTime: m.scheduled_time,
+          player1: {
+            id: m.player1_id,
+            name: m.player1_name,
+          },
+          player2: {
+            id: m.player2_id,
+            name: m.player2_name,
+          },
+          winner: m.winner_id,
+          score: hasFinalScore
+            ? {
+                sets: [[m.player1_score, m.player2_score]],
+                currentGame: [0, 0],
+                servingPlayer: null,
+              }
+            : m.score || null,
+        };
+      });
 
       setMatches(formattedMatches);
     } catch (error) {

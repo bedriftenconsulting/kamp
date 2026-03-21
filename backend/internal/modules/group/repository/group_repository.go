@@ -460,7 +460,14 @@ func (r *GroupRepository) GetStandings(ctx context.Context, groupID string, qual
 			COALESCE(SUM(CASE WHEN gm.status = 'completed' AND gm.winner_id = p.id THEN 1 ELSE 0 END), 0) AS wins,
 			COALESCE(SUM(CASE WHEN gm.status = 'completed' AND gm.winner_id IS NOT NULL AND gm.winner_id <> p.id THEN 1 ELSE 0 END), 0) AS losses,
 			COALESCE(SUM(CASE WHEN gm.status = 'completed' AND gm.player1_id = p.id THEN gm.player1_score WHEN gm.status = 'completed' AND gm.player2_id = p.id THEN gm.player2_score ELSE 0 END), 0) AS score_for,
-			COALESCE(SUM(CASE WHEN gm.status = 'completed' AND gm.player1_id = p.id THEN gm.player2_score WHEN gm.status = 'completed' AND gm.player2_id = p.id THEN gm.player1_score ELSE 0 END), 0) AS score_against
+			COALESCE(SUM(CASE WHEN gm.status = 'completed' AND gm.player1_id = p.id THEN gm.player2_score WHEN gm.status = 'completed' AND gm.player2_id = p.id THEN gm.player1_score ELSE 0 END), 0) AS score_against,
+			COALESCE(SUM(
+				CASE
+					WHEN gm.status = 'completed' AND gm.winner_id IS NOT NULL AND gm.winner_id <> p.id AND gm.player1_id = p.id THEN gm.player1_score
+					WHEN gm.status = 'completed' AND gm.winner_id IS NOT NULL AND gm.winner_id <> p.id AND gm.player2_id = p.id THEN gm.player2_score
+					ELSE 0
+				END
+			), 0) AS losing_score_for
 		FROM group_players gp
 		JOIN players p ON p.id = gp.player_id
 		LEFT JOIN group_matches gm ON gm.group_id = gp.group_id AND (gm.player1_id = p.id OR gm.player2_id = p.id)
@@ -480,14 +487,16 @@ func (r *GroupRepository) GetStandings(ctx context.Context, groupID string, qual
 	rank := 1
 	for rows.Next() {
 		var s model.GroupStanding
-		if err := rows.Scan(&s.PlayerID, &s.PlayerName, &s.Wins, &s.Losses, &s.ScoreFor, &s.ScoreAgainst); err != nil {
+		var losingScoreFor int
+		if err := rows.Scan(&s.PlayerID, &s.PlayerName, &s.Wins, &s.Losses, &s.ScoreFor, &s.ScoreAgainst, &losingScoreFor); err != nil {
 			return nil, err
 		}
 		s.ScoreDiff = s.ScoreFor - s.ScoreAgainst
 		// Standings points:
-		// - 15 bonus points per win
-		// - plus scored match points (so losing players also get visible points)
-		s.Points = (s.Wins * 15) + s.ScoreFor
+		// - 15 points per win
+		// - plus points scored in matches the player lost (so losers show points)
+		// This avoids double-counting winner scored points.
+		s.Points = (s.Wins * 15) + losingScoreFor
 		s.Rank = rank
 		s.IsQualified = rank <= qualifiers
 		standings = append(standings, s)
