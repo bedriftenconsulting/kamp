@@ -310,6 +310,7 @@ export default function AdminDashboard() {
   const [groupScoreInputs, setGroupScoreInputs] = useState<Record<string, { p1: string; p2: string }>>({});
   const [isSavingGroupPlayers, setIsSavingGroupPlayers] = useState(false);
   const [isLockingGroup, setIsLockingGroup] = useState(false);
+  const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
 
   const [matchPage, setMatchPage] = useState(1);
   const matchesPerPage = 20;
@@ -925,6 +926,32 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleDeleteGroup = async (groupID: string) => {
+    if (!confirm("Delete this group? This also removes generated matches linked to it.")) return;
+
+    setDeletingGroupId(groupID);
+    try {
+      const res = await fetch(`${API_V1_URL}/groups/${groupID}`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to delete group");
+      }
+
+      if (selectedGroupId === groupID) {
+        setSelectedGroupId(null);
+        setGroupPlayerSelections([]);
+        setGroupMatches([]);
+        setGroupStandings([]);
+      }
+
+      await fetchData();
+    } catch (error: any) {
+      alert(error?.message || "Failed to delete group");
+    } finally {
+      setDeletingGroupId(null);
+    }
+  };
+
   const liveCount = matches.filter((m) => m.status === "live").length;
   const completedCount = matches.filter((m) => m.status === "completed").length;
   const upcomingCount = matches.filter((m) => m.status === "scheduled").length;
@@ -1165,12 +1192,19 @@ export default function AdminDashboard() {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex items-center justify-end">
+                          <div className="flex items-center justify-end gap-2">
                             <Button
                               variant={selectedGroupId === g.id ? "default" : "outline"}
                               onClick={() => handleSelectGroup(g.id)}
                             >
                               {selectedGroupId === g.id ? "Selected" : "Manage"}
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              onClick={() => handleDeleteGroup(g.id)}
+                              disabled={deletingGroupId === g.id}
+                            >
+                              {deletingGroupId === g.id ? "Removing..." : "Remove"}
                             </Button>
                           </div>
                         </td>

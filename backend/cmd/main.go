@@ -186,6 +186,7 @@ func main() {
 		api.GET("/groups/:id/matches", groupHdl.GetMatches)
 		api.PUT("/groups/:id/matches/:matchId/result", groupHdl.SaveResult)
 		api.GET("/groups/:id/standings", groupHdl.GetStandings)
+		api.DELETE("/groups/:id", groupHdl.DeleteGroup)
 	}
 
 	// ✅ Start WebSocket listener

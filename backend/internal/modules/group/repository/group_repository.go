@@ -149,6 +149,51 @@ func (r *GroupRepository) GetGroupByID(ctx context.Context, groupID string) (*mo
 	return &g, nil
 }
 
+func (r *GroupRepository) DeleteGroup(ctx context.Context, groupID string) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	rows, err := tx.Query(ctx, `
+		SELECT main_match_id::text
+		FROM group_matches
+		WHERE group_id = $1
+			AND main_match_id IS NOT NULL
+	`, groupID)
+	if err != nil {
+		return err
+	}
+
+	mainMatchIDs := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		mainMatchIDs = append(mainMatchIDs, id)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+
+	if _, err := tx.Exec(ctx, `DELETE FROM groups WHERE id = $1`, groupID); err != nil {
+		return err
+	}
+
+	for _, matchID := range mainMatchIDs {
+		if _, err := tx.Exec(ctx, `DELETE FROM matches WHERE id = $1`, matchID); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
 func (r *GroupRepository) SetGroupPlayers(ctx context.Context, groupID string, playerIDs []string) error {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
@@ -189,6 +234,7 @@ func (r *GroupRepository) ValidatePlayersLevelAndGender(ctx context.Context, pla
 	defer rows.Close()
 
 	seen := map[string]bool{}
+	normalizedExpectedGender := normalizeGenderAlias(expectedGender)
 	for rows.Next() {
 		var id, level, gender string
 		if err := rows.Scan(&id, &level, &gender); err != nil {
@@ -198,7 +244,7 @@ func (r *GroupRepository) ValidatePlayersLevelAndGender(ctx context.Context, pla
 		if !strings.EqualFold(strings.TrimSpace(level), strings.TrimSpace(expectedLevel)) {
 			return fmt.Errorf("player %s has tennis_level %q, expected %q", id, level, expectedLevel)
 		}
-		if !strings.EqualFold(strings.TrimSpace(gender), strings.TrimSpace(expectedGender)) {
+		if normalizeGenderAlias(gender) != normalizedExpectedGender {
 			return fmt.Errorf("player %s has gender %q, expected %q", id, gender, expectedGender)
 		}
 	}
@@ -458,4 +504,15 @@ func nullIfEmptyPtr(v *string) interface{} {
 		return nil
 	}
 	return *v
+}
+
+func normalizeGenderAlias(v string) string {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "male", "man", "men":
+		return "men"
+	case "female", "woman", "women":
+		return "women"
+	default:
+		return strings.ToLower(strings.TrimSpace(v))
+	}
 }

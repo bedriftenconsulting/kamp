@@ -8,23 +8,31 @@ import { API_V1_URL } from "@/lib/api-url";
 
 export default function Index() {
   const [matches, setMatches] = useState<any[]>([]);
+  const [groups, setGroups] = useState<any[]>([]);
+  const [groupMembersById, setGroupMembersById] = useState<Record<string, string[]>>({});
   const [tournament, setTournament] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [matchesRes, tournamentRes] = await Promise.all([
+        const [matchesRes, tournamentRes, groupsRes, playersRes] = await Promise.all([
           fetch(`${API_V1_URL}/matches`),
           fetch(`${API_V1_URL}/tournaments`),
+          fetch(`${API_V1_URL}/groups`),
+          fetch(`${API_V1_URL}/players`),
         ]);
 
         const matchesData = await matchesRes.json();
         const tournamentData = await tournamentRes.json();
+        const groupsData = await groupsRes.json();
+        const playersData = await playersRes.json();
         const toList = (payload: any) =>
           Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
         const matchesList = toList(matchesData);
         const tournamentList = toList(tournamentData);
+        const groupsList = toList(groupsData);
+        const playersList = toList(playersData);
 
         // ✅ Ensure tournament exists
         if (tournamentList.length === 0) {
@@ -61,8 +69,43 @@ export default function Index() {
           scheduledTime: m.scheduled_time,
         }));
 
+        const formattedGroups = groupsList.map((g: any) => ({
+          id: g.id,
+          designation: g.designation,
+          gender: g.gender || "",
+          tennis_level: g.tennis_level || "",
+          is_locked: Boolean(g.is_locked),
+          status: g.status || "",
+        }));
+
+        const formattedPlayers = playersList.map((p: any) => ({
+          id: p.id,
+          name: `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Unknown Player",
+        }));
+        const playerNameByID = new Map(formattedPlayers.map((p: any) => [p.id, p.name]));
+
+        const lockedGroupIDs = formattedGroups
+          .filter((g: any) => g.is_locked || g.status === "locked" || g.status === "completed")
+          .map((g: any) => g.id);
+
+        const groupMembersEntries = await Promise.all(
+          lockedGroupIDs.map(async (groupID: string) => {
+            try {
+              const res = await fetch(`${API_V1_URL}/groups/${groupID}/players`);
+              const payload = await res.json().catch(() => ({}));
+              const ids = Array.isArray(payload?.player_ids) ? payload.player_ids : [];
+              const names = ids.map((id: string) => playerNameByID.get(id) || id);
+              return [groupID, names] as const;
+            } catch {
+              return [groupID, []] as const;
+            }
+          }),
+        );
+        setGroupMembersById(Object.fromEntries(groupMembersEntries));
+
         setTournament(formattedTournament);
         setMatches(formattedMatches);
+        setGroups(formattedGroups);
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
@@ -80,6 +123,15 @@ export default function Index() {
   const upcomingMatches = (Array.isArray(matches) ? matches : []).filter(
     (m) => m.status === "scheduled"
   );
+  const upcomingMatchesToShow = upcomingMatches.slice(0, 6);
+  const lockedGroups = (Array.isArray(groups) ? groups : []).filter(
+    (g) => g.is_locked || g.status === "locked" || g.status === "completed",
+  );
+  const participantsByLevel = {
+    Beginner: lockedGroups.filter((g) => g.tennis_level === "Beginner"),
+    Intermediate: lockedGroups.filter((g) => g.tennis_level === "Intermediate"),
+    Advanced: lockedGroups.filter((g) => g.tennis_level === "Advanced"),
+  };
 
   // ✅ Safe loading states
   if (loading) {
@@ -93,8 +145,14 @@ export default function Index() {
   return (
     <div>
       {/* Hero */}
-      <section className="relative bg-primary overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_hsl(73_100%_50%_/_0.08),_transparent_60%)]" />
+      <section
+        className="relative overflow-hidden bg-primary bg-cover bg-center bg-no-repeat"
+        style={{
+          backgroundImage:
+            "linear-gradient(90deg, rgba(18,8,14,0.62) 0%, rgba(18,8,14,0.45) 45%, rgba(18,8,14,0.42) 100%), url('/background.png')",
+        }}
+      >
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_hsl(330_86%_90%_/_0.24),_transparent_60%)]" />
 
         <div className="container relative py-20 md:py-32">
           <motion.div
@@ -182,10 +240,20 @@ export default function Index() {
           <div className="container">
             <h2 className="text-2xl font-bold mb-6">Coming Up</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {upcomingMatches.map((match) => (
+              {upcomingMatchesToShow.map((match) => (
                 <ScoreCard key={match.id} match={match} />
               ))}
             </div>
+            {upcomingMatches.length > 6 && (
+              <div className="mt-6">
+                <Link to="/schedule">
+                  <Button variant="outline" className="gap-2">
+                    More
+                    <ArrowRight size={16} />
+                  </Button>
+                </Link>
+              </div>
+            )}
           </div>
         </section>
       )}
@@ -216,6 +284,45 @@ export default function Index() {
               {new Date(tournament.startDate).toLocaleDateString()} -{" "}
               {new Date(tournament.endDate).toLocaleDateString()}
             </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Participants */}
+      <section className="py-12 bg-muted/30">
+        <div className="container">
+          <h2 className="text-2xl font-bold mb-6">Participants</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {(["Beginner", "Intermediate", "Advanced"] as const).map((level) => (
+              <div key={level} className="p-6 border rounded-md bg-card">
+                <h3 className="font-bold mb-3">{level}</h3>
+                {participantsByLevel[level].length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No locked groups yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {participantsByLevel[level].map((g) => (
+                      <div key={g.id} className="text-sm border rounded-sm px-3 py-2 bg-muted/50">
+                        <div className="font-semibold">
+                          Group {g.designation}
+                          {g.gender ? ` (${g.gender})` : ""}
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {groupMembersById[g.id]?.length ? (
+                            <ol className="list-decimal list-inside space-y-0.5">
+                              {groupMembersById[g.id].map((memberName, idx) => (
+                                <li key={`${g.id}-${idx}`}>{memberName}</li>
+                              ))}
+                            </ol>
+                          ) : (
+                            "No members assigned"
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       </section>

@@ -179,3 +179,15 @@ func (s *GroupService) GetStandings(ctx context.Context, groupID string) ([]mode
 
 	return s.repo.GetStandings(ctx, groupID, g.QualifiersCount)
 }
+
+func (s *GroupService) DeleteGroup(ctx context.Context, groupID string) error {
+	g, err := s.repo.GetGroupByID(ctx, groupID)
+	if err != nil {
+		return err
+	}
+	if g == nil {
+		return fmt.Errorf("group not found")
+	}
+
+	return s.repo.DeleteGroup(ctx, groupID)
+}

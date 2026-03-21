@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Users, TrendingUp } from "lucide-react";
 import { API_V1_URL } from "@/lib/api-url";
@@ -10,6 +10,41 @@ export default function Players() {
   const [loading, setLoading] = useState(true);
 
   const selectedPlayer = players.find((p) => p.id === selected);
+  const groupedPlayers = useMemo(() => {
+    const normalizeLevel = (v: string) => {
+      const s = (v || "").trim().toLowerCase();
+      if (s === "beginner") return "Beginner";
+      if (s === "intermediate") return "Intermediate";
+      if (s === "advanced") return "Advanced";
+      return "Unspecified";
+    };
+    const normalizeGender = (v: string) => {
+      const s = (v || "").trim().toLowerCase();
+      if (["male", "man", "men"].includes(s)) return "Men";
+      if (["female", "woman", "women"].includes(s)) return "Women";
+      return "Unspecified";
+    };
+
+    const byGroup = new Map<string, { title: string; items: any[] }>();
+    players.forEach((p) => {
+      const level = normalizeLevel(p.tennis_level);
+      const gender = normalizeGender(p.gender);
+      const title = `${level} - ${gender}`;
+      if (!byGroup.has(title)) byGroup.set(title, { title, items: [] });
+      byGroup.get(title)!.items.push(p);
+    });
+
+    const levelOrder = ["Beginner", "Intermediate", "Advanced", "Unspecified"];
+    const genderOrder = ["Men", "Women", "Unspecified"];
+
+    return Array.from(byGroup.values()).sort((a, b) => {
+      const [al, ag] = a.title.split(" - ");
+      const [bl, bg] = b.title.split(" - ");
+      const lDiff = levelOrder.indexOf(al) - levelOrder.indexOf(bl);
+      if (lDiff !== 0) return lDiff;
+      return genderOrder.indexOf(ag) - genderOrder.indexOf(bg);
+    });
+  }, [players]);
 
   const fetchData = async () => {
     try {
@@ -26,6 +61,8 @@ export default function Players() {
         id: p.id,
         name: `${p.first_name} ${p.last_name}`,
         country: p.nationality,
+        gender: p.gender || "",
+        tennis_level: p.tennis_level || "",
         ranking: p.ranking,
         wins: 0,   // placeholder (can compute later)
         losses: 0, // placeholder
@@ -74,59 +111,59 @@ export default function Players() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Player Grid */}
         <div className="lg:col-span-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {players.map((player, i) => (
-              <motion.button
-                key={player.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-                onClick={() => setSelected(player.id)}
-                className={`bg-card border rounded-md p-4 text-left transition-all hover:shadow-md ${
-                  selected === player.id
-                    ? "ring-2 ring-primary border-primary"
-                    : "border-border"
-                }`}
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-12 h-12 rounded-sm bg-primary/10 flex items-center justify-center font-display font-black text-primary text-lg">
-                    {player.name
-                      .split(" ")
-                      .map((n: string) => n[0])
-                      .join("")}
-                  </div>
+          <div className="space-y-6">
+            {groupedPlayers.map((group) => (
+              <div key={group.title}>
+                <h2 className="text-lg font-bold mb-3">{group.title}</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {group.items.map((player, i) => (
+                    <motion.button
+                      key={player.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                      onClick={() => setSelected(player.id)}
+                      className={`bg-card border rounded-md p-4 text-left transition-all hover:shadow-md ${
+                        selected === player.id
+                          ? "ring-2 ring-primary border-primary"
+                          : "border-border"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-12 h-12 rounded-sm bg-primary/10 flex items-center justify-center font-display font-black text-primary text-lg">
+                          {player.name
+                            .split(" ")
+                            .map((n: string) => n[0])
+                            .join("")}
+                        </div>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="font-bold text-sm truncate">
-                      {player.name}
-                    </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-sm truncate">
+                            {player.name}
+                          </div>
 
-                    <div className="text-xs text-muted-foreground">
-                      {player.country}
-                    </div>
-                  </div>
+                          <div className="text-xs text-muted-foreground">
+                            {player.country}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4 text-xs">
+                        <div>
+                          <span className="text-muted-foreground">W-L</span>
+                          <span className="ml-1 font-bold text-court">
+                            {player.wins}
+                          </span>
+                          <span className="text-muted-foreground">-</span>
+                          <span className="font-bold text-live">
+                            {player.losses}
+                          </span>
+                        </div>
+                      </div>
+                    </motion.button>
+                  ))}
                 </div>
-
-                <div className="flex items-center gap-4 text-xs">
-                  <div>
-                    <span className="text-muted-foreground">Rank</span>
-                    <span className="ml-1 font-bold">
-                      #{player.ranking}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="text-muted-foreground">W-L</span>
-                    <span className="ml-1 font-bold text-court">
-                      {player.wins}
-                    </span>
-                    <span className="text-muted-foreground">-</span>
-                    <span className="font-bold text-live">
-                      {player.losses}
-                    </span>
-                  </div>
-                </div>
-              </motion.button>
+              </div>
             ))}
           </div>
         </div>
@@ -158,9 +195,8 @@ export default function Players() {
               </div>
 
               {/* Stats */}
-              <div className="grid grid-cols-3 gap-3 mb-6">
+              <div className="grid grid-cols-2 gap-3 mb-6">
                 {[
-                  { label: "Rank", value: `#${selectedPlayer.ranking}` },
                   { label: "Wins", value: selectedPlayer.wins },
                   { label: "Losses", value: selectedPlayer.losses },
                 ].map((stat) => (

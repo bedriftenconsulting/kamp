@@ -165,3 +165,18 @@ func (h *GroupHandler) GetStandings(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, standings)
 }
+
+func (h *GroupHandler) DeleteGroup(c *gin.Context) {
+	groupID := strings.TrimSpace(c.Param("id"))
+	if groupID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "group id is required"})
+		return
+	}
+
+	if err := h.service.DeleteGroup(c, groupID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "group deleted"})
+}
