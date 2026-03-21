@@ -7,22 +7,16 @@ const rounds = ["All", "Round of 16", "Quarterfinal", "Semifinal", "Final"];
 
 export default function Schedule() {
   const [matches, setMatches] = useState<any[]>([]);
-  const [groupStandings, setGroupStandings] = useState<any[]>([]);
   const [selectedRound, setSelectedRound] = useState("All");
   const [loading, setLoading] = useState(true);
 
   const fetchMatches = async () => {
     try {
-      const [matchesRes, groupsRes] = await Promise.all([
-        fetch(`${API_V1_URL}/matches`),
-        fetch(`${API_V1_URL}/groups`),
-      ]);
+      const matchesRes = await fetch(`${API_V1_URL}/matches`);
       const matchesData = await matchesRes.json();
-      const groupsData = await groupsRes.json();
       const toList = (payload: any) =>
         Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
       const data = toList(matchesData);
-      const groups = toList(groupsData);
 
       // ✅ Transform backend → frontend
       const formattedMatches = data.map((m: any) => ({
@@ -44,25 +38,6 @@ export default function Schedule() {
       }));
 
       setMatches(formattedMatches);
-
-      const lockedGroups = groups.filter(
-        (g: any) => g.is_locked || g.status === "locked" || g.status === "completed",
-      );
-      const standingsEntries = await Promise.all(
-        lockedGroups.map(async (g: any) => {
-          try {
-            const res = await fetch(`${API_V1_URL}/groups/${g.id}/standings`);
-            const standings = await res.json();
-            return {
-              group: g,
-              standings: Array.isArray(standings) ? standings : [],
-            };
-          } catch {
-            return { group: g, standings: [] };
-          }
-        }),
-      );
-      setGroupStandings(standingsEntries);
     } catch (error) {
       console.error("Error fetching matches:", error);
     } finally {
@@ -111,60 +86,6 @@ export default function Schedule() {
           </button>
         ))}
       </div>
-
-      {/* Live Standings */}
-      <section className="mb-10">
-        <h2 className="text-lg font-bold mb-4">Live Standings</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {groupStandings.length === 0 ? (
-            <div className="bg-card border rounded-md p-6 text-sm text-muted-foreground">
-              No locked groups available.
-            </div>
-          ) : (
-            groupStandings.map(({ group, standings }: any) => (
-              <div key={group.id} className="bg-card border rounded-md overflow-hidden">
-                <div className="px-4 py-3 border-b bg-muted/40">
-                  <div className="text-sm font-bold">
-                    {group.tennis_level} - Group {group.designation}
-                    {group.gender ? ` (${group.gender})` : ""}
-                  </div>
-                </div>
-
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/20">
-                    <tr>
-                      <th className="px-4 py-2 text-left">Player</th>
-                      <th className="px-4 py-2 text-left">W</th>
-                      <th className="px-4 py-2 text-left">L</th>
-                      <th className="px-4 py-2 text-left">Pts</th>
-                      <th className="px-4 py-2 text-left">Diff</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {standings.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-4 py-3 text-muted-foreground">
-                          No results yet.
-                        </td>
-                      </tr>
-                    ) : (
-                      standings.map((s: any) => (
-                        <tr key={s.player_id} className="border-t">
-                          <td className="px-4 py-2">{s.player_name}</td>
-                          <td className="px-4 py-2">{s.wins}</td>
-                          <td className="px-4 py-2">{s.losses}</td>
-                          <td className="px-4 py-2">{s.points}</td>
-                          <td className="px-4 py-2">{s.score_diff}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
 
       {/* Bracket Preview */}
       <section className="mb-10">

@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import LiveScores from "./pages/LiveScores";
 import Schedule from "./pages/Schedule";
 import Players from "./pages/Players";
+import Standings from "./pages/Standings";
 import Results from "./pages/Results";
 import UmpireScoring from "./pages/UmpireScoring";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -30,6 +31,7 @@ const App = () => (
             <Route path="/live" element={<LiveScores />} />
             <Route path="/schedule" element={<Schedule />} />
             <Route path="/players" element={<Players />} />
+            <Route path="/standings" element={<Standings />} />
             <Route path="/results" element={<Results />} />
             <Route path="*" element={<NotFound />} />
           </Route>

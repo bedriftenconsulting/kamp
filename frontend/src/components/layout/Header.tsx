@@ -7,6 +7,7 @@ const navItems = [
   { label: "Live Scores", path: "/live" },
   { label: "Schedule", path: "/schedule" },
   { label: "Players", path: "/players" },
+  { label: "Standings", path: "/standings" },
   { label: "Results", path: "/results" },
 ];
 
