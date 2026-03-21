@@ -50,10 +50,15 @@ func (r *MatchRepository) GetAll(ctx context.Context) ([]model.Match, error) {
 		m.created_at,
 		m.updated_at,
 		COALESCE(p1.first_name || ' ' || p1.last_name, 'TBD') AS player1_name,
-		COALESCE(p2.first_name || ' ' || p2.last_name, 'TBD') AS player2_name
+		COALESCE(p2.first_name || ' ' || p2.last_name, 'TBD') AS player2_name,
+		COALESCE(pw.first_name || ' ' || pw.last_name, '') AS winner_name,
+		gm.player1_score,
+		gm.player2_score
 	FROM matches m
 	LEFT JOIN players p1 ON m.player1_id = p1.id
 	LEFT JOIN players p2 ON m.player2_id = p2.id
+	LEFT JOIN players pw ON m.winner_id = pw.id
+	LEFT JOIN group_matches gm ON gm.main_match_id = m.id
 	ORDER BY m.created_at DESC
 	`
 
@@ -82,6 +87,9 @@ func (r *MatchRepository) GetAll(ctx context.Context) ([]model.Match, error) {
 			&m.UpdatedAt,
 			&m.Player1Name,
 			&m.Player2Name,
+			&m.WinnerName,
+			&m.Player1Score,
+			&m.Player2Score,
 		)
 		if err != nil {
 			return nil, err

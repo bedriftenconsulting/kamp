@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -25,8 +26,14 @@ func (h *TournamentHandler) CreateTournament(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	surface, err := normalizeTournamentSurface(input.Surface)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	input.Surface = surface
 
-	err := h.service.CreateTournament(c, &input)
+	err = h.service.CreateTournament(c, &input)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -60,6 +67,12 @@ func (h *TournamentHandler) UpdateTournament(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	surface, err := normalizeTournamentSurface(input.Surface)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	input.Surface = surface
 
 	input.ID = id
 
@@ -84,4 +97,22 @@ func (h *TournamentHandler) DeleteTournament(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "tournament deleted"})
+}
+
+func normalizeTournamentSurface(v string) (string, error) {
+	s := strings.TrimSpace(v)
+	if s == "" {
+		return "", nil
+	}
+
+	switch strings.ToLower(s) {
+	case "hard":
+		return "Hard", nil
+	case "clay":
+		return "Clay", nil
+	case "grass":
+		return "Grass", nil
+	default:
+		return "", fmt.Errorf("invalid surface: %q (allowed: Hard, Clay, Grass)", v)
+	}
 }

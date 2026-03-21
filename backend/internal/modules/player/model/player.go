@@ -8,6 +8,8 @@ type Player struct {
 	LastName        string    `json:"last_name"`
 	DateOfBirth     time.Time `json:"date_of_birth"`
 	Nationality     string    `json:"nationality"`
+	TournamentID    string    `json:"tournament_id"`
+	TournamentName  string    `json:"tournament_name"`
 	Gender          string    `json:"gender"`
 	Age             int       `json:"age"`
 	TennisLevel     string    `json:"tennis_level"`

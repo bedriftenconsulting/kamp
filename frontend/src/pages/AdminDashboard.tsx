@@ -6,6 +6,7 @@ import {
   Users,
   Trophy,
   Calendar,
+  Blocks,
   Zap,
   Plus,
   Pencil,
@@ -19,14 +20,16 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 
 const tabs = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "matches", label: "Matches", icon: Calendar },
   { id: "players", label: "Players", icon: Users },
+  { id: "groups", label: "Groups", icon: Blocks },
+  { id: "matches", label: "Matches", icon: Calendar },
   { id: "tournament", label: "Tournament", icon: Trophy },
 ];
 
@@ -36,6 +39,7 @@ type Player = {
   last_name: string;
   date_of_birth: string;
   nationality: string;
+  tournament_name: string;
   gender: string;
   age: number;
   tennis_level: string;
@@ -56,6 +60,9 @@ type Match = {
   scheduled_time?: string | null;
   status: string;
   winner_id?: string | null;
+  winner_name?: string;
+  player1_score?: number | null;
+  player2_score?: number | null;
   created_at?: string;
   player1_name?: string;
   player2_name?: string;
@@ -107,6 +114,51 @@ type TournamentForm = {
   end_date: string;
   status: string;
   surface: string;
+};
+
+type Group = {
+  id: string;
+  designation: string;
+  gender: string;
+  tennis_level: "Beginner" | "Intermediate" | "Advanced";
+  max_players: number;
+  qualifiers_count: number;
+  is_locked: boolean;
+  players_count: number;
+  status: "open" | "locked" | "completed";
+};
+
+type GroupForm = {
+  designation: string;
+  gender: "Men" | "Women";
+  tennis_level: "Beginner" | "Intermediate" | "Advanced";
+  max_players: string;
+  qualifiers_count: string;
+};
+
+type GroupMatch = {
+  id: string;
+  group_id: string;
+  player1_id: string;
+  player2_id: string;
+  player1_name: string;
+  player2_name: string;
+  player1_score: number;
+  player2_score: number;
+  status: string;
+};
+
+type GroupStanding = {
+  player_id: string;
+  player_name: string;
+  wins: number;
+  losses: number;
+  score_for: number;
+  score_against: number;
+  score_diff: number;
+  points: number;
+  rank: number;
+  is_qualified: boolean;
 };
 
 type CompleteForm = {
@@ -164,11 +216,67 @@ const emptyTournamentForm: TournamentForm = {
   surface: "",
 };
 
+const emptyGroupForm: GroupForm = {
+  designation: "",
+  gender: "Men",
+  tennis_level: "Beginner",
+  max_players: "4",
+  qualifiers_count: "2",
+};
+
+const calculateAgeFromDOB = (dob?: string | null) => {
+  if (!dob) return 0;
+  const birth = new Date(dob);
+  if (Number.isNaN(birth.getTime())) return 0;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age > 0 ? age : 0;
+};
+
+const normalizeGender = (raw?: string | null): "Men" | "Women" | "" => {
+  const v = (raw || "").trim().toLowerCase();
+  if (["male", "man", "men"].includes(v)) return "Men";
+  if (["female", "woman", "women"].includes(v)) return "Women";
+  return "";
+};
+
+const parseResponseBody = async (res: Response) => {
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+};
+
+const fetchJSONOrFallback = async <T,>(url: string, fallback: T): Promise<T> => {
+  try {
+    const res = await fetch(url);
+    const body = await parseResponseBody(res);
+
+    if (!res.ok) {
+      console.warn(`[AdminDashboard] ${url} returned ${res.status}`, body);
+      return fallback;
+    }
+
+    return (body as T) ?? fallback;
+  } catch (error) {
+    console.error(`[AdminDashboard] request failed for ${url}`, error);
+    return fallback;
+  }
+};
+
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [matches, setMatches] = useState<Match[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
 
   const [isPlayerDialogOpen, setIsPlayerDialogOpen] = useState(false);
   const [isEditingPlayer, setIsEditingPlayer] = useState(false);
@@ -192,20 +300,28 @@ export default function AdminDashboard() {
   const [isSavingTournament, setIsSavingTournament] = useState(false);
   const [deletingTournamentId, setDeletingTournamentId] = useState<string | null>(null);
 
+  const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
+  const [groupForm, setGroupForm] = useState<GroupForm>(emptyGroupForm);
+  const [isSavingGroup, setIsSavingGroup] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [groupPlayerSelections, setGroupPlayerSelections] = useState<string[]>([]);
+  const [groupMatches, setGroupMatches] = useState<GroupMatch[]>([]);
+  const [groupStandings, setGroupStandings] = useState<GroupStanding[]>([]);
+  const [groupScoreInputs, setGroupScoreInputs] = useState<Record<string, { p1: string; p2: string }>>({});
+  const [isSavingGroupPlayers, setIsSavingGroupPlayers] = useState(false);
+  const [isLockingGroup, setIsLockingGroup] = useState(false);
+
   const [matchPage, setMatchPage] = useState(1);
   const matchesPerPage = 20;
 
   const fetchData = async () => {
     try {
-      const [matchesRes, playersRes, tournamentRes] = await Promise.all([
-        fetch(`${API_V1_URL}/matches`),
-        fetch(`${API_V1_URL}/players`),
-        fetch(`${API_V1_URL}/tournaments`),
+      const [matchesData, playersData, tournamentData, groupsData] = await Promise.all([
+        fetchJSONOrFallback<any>(`${API_V1_URL}/matches`, []),
+        fetchJSONOrFallback<any>(`${API_V1_URL}/players`, []),
+        fetchJSONOrFallback<any>(`${API_V1_URL}/tournaments`, []),
+        fetchJSONOrFallback<any>(`${API_V1_URL}/groups`, []),
       ]);
-
-      const matchesData = await matchesRes.json();
-      const playersData = await playersRes.json();
-      const tournamentData = await tournamentRes.json();
       console.log("DATA:", tournamentData);
 
       const toList = (payload: any) =>
@@ -214,6 +330,7 @@ export default function AdminDashboard() {
       const matchesList = toList(matchesData);
       const playersList = toList(playersData);
       const tournamentList = toList(tournamentData);
+      const groupsList = toList(groupsData);
 
       const formattedMatches: Match[] = matchesList.map((m: any) => ({
         id: m.id,
@@ -225,6 +342,9 @@ export default function AdminDashboard() {
         scheduled_time: m.scheduled_time,
         status: m.status,
         winner_id: m.winner_id,
+        winner_name: m.winner_name || "",
+        player1_score: m.player1_score ?? null,
+        player2_score: m.player2_score ?? null,
         created_at: m.created_at,
         player1_name: m.player1_name,
         player2_name: m.player2_name,
@@ -241,18 +361,19 @@ export default function AdminDashboard() {
 
       const formattedPlayers: Player[] = playersList.map((p: any) => ({
         id: p.id,
-        first_name: p.first_name,
-        last_name: p.last_name,
-        date_of_birth: p.date_of_birth,
-        nationality: p.nationality,
-        gender: p.gender || "",
-        age: Number(p.age || 0),
-        tennis_level: p.tennis_level || "",
-        ranking: p.ranking,
+        first_name: p.first_name || p.firstName || "",
+        last_name: p.last_name || p.lastName || "",
+        date_of_birth: p.date_of_birth || p.dateOfBirth || "",
+        nationality: p.nationality || p.country || "",
+        tournament_name: p.tournament_name || p.tournamentName || "",
+        gender: p.gender || p.Gender || "",
+        age: Number(p.age || p.Age || calculateAgeFromDOB(p.date_of_birth || p.dateOfBirth)),
+        tennis_level: p.tennis_level || p.tennisLevel || "",
+        ranking: Number(p.ranking || 0),
         bio: p.bio || "",
-        profile_image_url: p.profile_image_url || "",
-        name: `${p.first_name} ${p.last_name}`,
-        country: p.nationality,
+        profile_image_url: p.profile_image_url || p.profileImageUrl || "",
+        name: `${p.first_name || p.firstName || ""} ${p.last_name || p.lastName || ""}`.trim(),
+        country: p.nationality || p.country || "",
       }));
 
       const formattedTournaments: Tournament[] = tournamentList.map((t: any) => ({
@@ -265,9 +386,22 @@ export default function AdminDashboard() {
         surface: t.surface,
       }));
 
+      const formattedGroups: Group[] = groupsList.map((g: any) => ({
+        id: g.id,
+        designation: g.designation,
+        gender: normalizeGender(g.gender || g.Gender) || "",
+        tennis_level: g.tennis_level,
+        max_players: Number(g.max_players || 0),
+        qualifiers_count: Number(g.qualifiers_count || 0),
+        is_locked: Boolean(g.is_locked),
+        players_count: Number(g.players_count || 0),
+        status: g.status || (g.is_locked ? "locked" : "open"),
+      }));
+
       setMatches(formattedMatches);
       setPlayers(formattedPlayers);
       setTournaments(formattedTournaments);
+      setGroups(formattedGroups);
       setMatchPage(1);
     } catch (error) {
       console.error("Error loading admin data:", error);
@@ -278,11 +412,38 @@ export default function AdminDashboard() {
     fetchData();
   }, []);
 
-  const totalMatchPages = Math.max(1, Math.ceil(matches.length / matchesPerPage));
+  useEffect(() => {
+    if (activeTab !== "groups") return;
+
+    if (groups.length === 0) {
+      setSelectedGroupId(null);
+      setGroupPlayerSelections([]);
+      setGroupMatches([]);
+      setGroupStandings([]);
+      return;
+    }
+
+    const hasSelected = selectedGroupId && groups.some((g) => g.id === selectedGroupId);
+    const nextGroupID = hasSelected ? selectedGroupId! : groups[0].id;
+
+    if (!hasSelected) {
+      setSelectedGroupId(nextGroupID);
+    }
+
+    loadGroupDetails(nextGroupID).catch((error: any) => {
+      console.error("Failed to auto-load group details:", error);
+    });
+  }, [activeTab, groups, selectedGroupId]);
+
+  const finalizedMatches = useMemo(
+    () => matches.filter((m) => m.status === "completed"),
+    [matches],
+  );
+  const totalMatchPages = Math.max(1, Math.ceil(finalizedMatches.length / matchesPerPage));
   const paginatedMatches = useMemo(() => {
     const start = (matchPage - 1) * matchesPerPage;
-    return matches.slice(start, start + matchesPerPage);
-  }, [matchPage, matches]);
+    return finalizedMatches.slice(start, start + matchesPerPage);
+  }, [matchPage, finalizedMatches]);
 
   const handleOpenAddPlayer = () => {
     setIsEditingPlayer(false);
@@ -609,6 +770,161 @@ export default function AdminDashboard() {
     }
   };
 
+  const selectedGroup = groups.find((g) => g.id === selectedGroupId) || null;
+
+  const loadGroupDetails = async (groupID: string) => {
+    const [playersData, matchesData, standingsData] = await Promise.all([
+      fetchJSONOrFallback<any>(`${API_V1_URL}/groups/${groupID}/players`, { player_ids: [] }),
+      fetchJSONOrFallback<any>(`${API_V1_URL}/groups/${groupID}/matches`, []),
+      fetchJSONOrFallback<any>(`${API_V1_URL}/groups/${groupID}/standings`, []),
+    ]);
+
+    const playerIDs = Array.isArray(playersData?.player_ids) ? playersData.player_ids : [];
+    setGroupPlayerSelections(playerIDs);
+
+    const formattedMatches: GroupMatch[] = (Array.isArray(matchesData) ? matchesData : []).map((m: any) => ({
+      id: m.id,
+      group_id: m.group_id,
+      player1_id: m.player1_id,
+      player2_id: m.player2_id,
+      player1_name: m.player1_name,
+      player2_name: m.player2_name,
+      player1_score: Number(m.player1_score || 0),
+      player2_score: Number(m.player2_score || 0),
+      status: m.status || "scheduled",
+    }));
+    setGroupMatches(formattedMatches);
+
+    const scoreInputs: Record<string, { p1: string; p2: string }> = {};
+    formattedMatches.forEach((m) => {
+      scoreInputs[m.id] = {
+        p1: String(m.player1_score ?? 0),
+        p2: String(m.player2_score ?? 0),
+      };
+    });
+    setGroupScoreInputs(scoreInputs);
+
+    setGroupStandings(Array.isArray(standingsData) ? standingsData : []);
+  };
+
+  const handleOpenAddGroup = () => {
+    setGroupForm(emptyGroupForm);
+    setIsGroupDialogOpen(true);
+  };
+
+  const handleSaveGroup = async () => {
+    if (!groupForm.designation || !groupForm.max_players || !groupForm.qualifiers_count) {
+      alert("Please fill all required group fields.");
+      return;
+    }
+
+    setIsSavingGroup(true);
+    try {
+      const payload = {
+        designation: groupForm.designation,
+        gender: normalizeGender(groupForm.gender) || "Men",
+        tennis_level: groupForm.tennis_level,
+        max_players: Number(groupForm.max_players),
+        qualifiers_count: Number(groupForm.qualifiers_count),
+      };
+
+      const res = await fetch(`${API_V1_URL}/groups`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to create group");
+      }
+
+      setIsGroupDialogOpen(false);
+      setGroupForm(emptyGroupForm);
+      await fetchData();
+    } catch (error: any) {
+      alert(error?.message || "Failed to create group");
+    } finally {
+      setIsSavingGroup(false);
+    }
+  };
+
+  const handleSelectGroup = async (groupID: string) => {
+    setSelectedGroupId(groupID);
+    try {
+      await loadGroupDetails(groupID);
+    } catch (error: any) {
+      alert(error?.message || "Failed to load group details");
+    }
+  };
+
+  const handleSaveGroupPlayers = async () => {
+    if (!selectedGroupId) return;
+    setIsSavingGroupPlayers(true);
+    try {
+      const res = await fetch(`${API_V1_URL}/groups/${selectedGroupId}/players`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ player_ids: groupPlayerSelections }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to save group players");
+      }
+      await fetchData();
+      await loadGroupDetails(selectedGroupId);
+    } catch (error: any) {
+      alert(error?.message || "Failed to save group players");
+    } finally {
+      setIsSavingGroupPlayers(false);
+    }
+  };
+
+  const handleLockGroup = async () => {
+    if (!selectedGroupId) return;
+    setIsLockingGroup(true);
+    try {
+      const res = await fetch(`${API_V1_URL}/groups/${selectedGroupId}/lock`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to lock group");
+      }
+      await fetchData();
+      await loadGroupDetails(selectedGroupId);
+    } catch (error: any) {
+      alert(error?.message || "Failed to lock group");
+    } finally {
+      setIsLockingGroup(false);
+    }
+  };
+
+  const handleSaveGroupMatchResult = async (matchID: string) => {
+    if (!selectedGroupId) return;
+    const input = groupScoreInputs[matchID];
+    if (!input) return;
+
+    try {
+      const res = await fetch(`${API_V1_URL}/groups/${selectedGroupId}/matches/${matchID}/result`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          player1_score: Number(input.p1 || 0),
+          player2_score: Number(input.p2 || 0),
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to save match result");
+      }
+      await fetchData();
+      await loadGroupDetails(selectedGroupId);
+    } catch (error: any) {
+      alert(error?.message || "Failed to save match result");
+    }
+  };
+
   const liveCount = matches.filter((m) => m.status === "live").length;
   const completedCount = matches.filter((m) => m.status === "completed").length;
   const upcomingCount = matches.filter((m) => m.status === "scheduled").length;
@@ -681,12 +997,11 @@ export default function AdminDashboard() {
 
         {activeTab === "matches" && (
           <div>
-            <div className="mb-6 flex items-center justify-between">
-              <h1 className="text-2xl font-black">Matches</h1>
-              <Button onClick={handleOpenAddMatch} className="gap-2">
-                <Plus size={16} />
-                Add Match
-              </Button>
+            <div className="mb-6">
+              <h1 className="text-2xl font-black">Match Results</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Results are populated from finalized round-robin group matches.
+              </p>
             </div>
 
             <div className="bg-card border rounded-md overflow-hidden">
@@ -696,9 +1011,9 @@ export default function AdminDashboard() {
                     <th className="px-4 py-3 text-left">No.</th>
                     <th className="px-4 py-3 text-left">Match-up</th>
                     <th className="px-4 py-3 text-left">Round</th>
-                    <th className="px-4 py-3 text-left">Court</th>
+                    <th className="px-4 py-3 text-left">Result</th>
+                    <th className="px-4 py-3 text-left">Winner</th>
                     <th className="px-4 py-3 text-left">Status</th>
-                    <th className="px-4 py-3 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -707,31 +1022,13 @@ export default function AdminDashboard() {
                       <td className="px-4 py-3">{(matchPage - 1) * matchesPerPage + idx + 1}</td>
                       <td className="px-4 py-3">{m.player1.name} vs {m.player2.name}</td>
                       <td className="px-4 py-3">{m.round}</td>
-                      <td className="px-4 py-3">{m.court}</td>
-                      <td className="px-4 py-3 capitalize">{m.status}</td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button variant="outline" size="icon" onClick={() => handleOpenEditMatch(m)}>
-                            <Pencil size={14} />
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="icon"
-                            onClick={() => handleDeleteMatch(m.id)}
-                            disabled={deletingMatchId === m.id}
-                          >
-                            <Trash2 size={14} />
-                          </Button>
-                          <Button
-                            variant="default"
-                            size="icon"
-                            onClick={() => handleOpenCompleteMatch(m)}
-                            disabled={m.status === "completed"}
-                          >
-                            <CheckCircle2 size={14} />
-                          </Button>
-                        </div>
+                        {m.player1_score != null && m.player2_score != null
+                          ? `${m.player1_score} - ${m.player2_score}`
+                          : "-"}
                       </td>
+                      <td className="px-4 py-3">{m.winner_name || "-"}</td>
+                      <td className="px-4 py-3 capitalize">{m.status}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -740,7 +1037,7 @@ export default function AdminDashboard() {
 
             <div className="mt-4 flex items-center justify-between">
               <div className="text-sm text-muted-foreground">
-                Showing {(matchPage - 1) * matchesPerPage + 1} - {Math.min(matchPage * matchesPerPage, matches.length)} of {matches.length}
+                Showing {finalizedMatches.length === 0 ? 0 : (matchPage - 1) * matchesPerPage + 1} - {Math.min(matchPage * matchesPerPage, finalizedMatches.length)} of {finalizedMatches.length}
               </div>
               <div className="flex items-center gap-2">
                 <Button variant="outline" onClick={() => setMatchPage((p) => Math.max(1, p - 1))} disabled={matchPage === 1}>
@@ -778,6 +1075,7 @@ export default function AdminDashboard() {
                     <th className="px-4 py-3 text-left">Gender</th>
                     <th className="px-4 py-3 text-left">Age</th>
                     <th className="px-4 py-3 text-left">Tennis Level</th>
+                    <th className="px-4 py-3 text-left">Tournament</th>
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -789,6 +1087,7 @@ export default function AdminDashboard() {
                       <td className="px-4 py-3">{p.gender || "-"}</td>
                       <td className="px-4 py-3">{p.age || "-"}</td>
                       <td className="px-4 py-3">{p.tennis_level || "-"}</td>
+                      <td className="px-4 py-3">{p.tournament_name || "-"}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-2">
                           <Button variant="outline" size="icon" onClick={() => handleOpenEditPlayer(p)}>
@@ -809,6 +1108,251 @@ export default function AdminDashboard() {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {activeTab === "groups" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h1 className="text-2xl font-black">Groups</h1>
+              <Button onClick={handleOpenAddGroup} className="gap-2">
+                <Plus size={16} />
+                Add Group
+              </Button>
+            </div>
+
+            <div className="bg-card border rounded-md overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Group</th>
+                    <th className="px-4 py-3 text-left">Gender</th>
+                    <th className="px-4 py-3 text-left">Level</th>
+                    <th className="px-4 py-3 text-left">Players</th>
+                    <th className="px-4 py-3 text-left">Qualifiers</th>
+                    <th className="px-4 py-3 text-left">Status</th>
+                    <th className="px-4 py-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groups.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                        No groups yet. Create one to start round robin setup.
+                      </td>
+                    </tr>
+                  ) : (
+                    groups.map((g) => (
+                      <tr key={g.id} className="border-t">
+                        <td className="px-4 py-3 font-semibold">{g.designation}</td>
+                        <td className="px-4 py-3">{normalizeGender(g.gender) || "-"}</td>
+                        <td className="px-4 py-3">{g.tennis_level}</td>
+                        <td className="px-4 py-3">
+                          {g.players_count} / {g.max_players}
+                        </td>
+                        <td className="px-4 py-3">Top {g.qualifiers_count}</td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={
+                              g.status === "completed"
+                                ? "text-emerald-600 font-medium"
+                                : g.status === "locked"
+                                  ? "text-amber-600 font-medium"
+                                  : "text-sky-600 font-medium"
+                            }
+                          >
+                            {g.status.charAt(0).toUpperCase() + g.status.slice(1)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end">
+                            <Button
+                              variant={selectedGroupId === g.id ? "default" : "outline"}
+                              onClick={() => handleSelectGroup(g.id)}
+                            >
+                              {selectedGroupId === g.id ? "Selected" : "Manage"}
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {selectedGroup && (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <div className="bg-card border rounded-md p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-bold">
+                      {(normalizeGender(selectedGroup.gender) || "Unspecified")} {selectedGroup.tennis_level} {selectedGroup.designation}
+                    </h2>
+                    <div className="text-xs text-muted-foreground">
+                      {selectedGroup.players_count}/{selectedGroup.max_players} players
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Assign Players</Label>
+                    <div className="max-h-56 overflow-auto rounded-md border p-3 space-y-2">
+                      {players
+                        .filter((p) => {
+                          const levelMatches = (p.tennis_level || "").toLowerCase() === selectedGroup.tennis_level.toLowerCase();
+                          const pg = normalizeGender(p.gender);
+                          const sg = normalizeGender(selectedGroup.gender);
+                          const genderMatches = sg !== "" && pg === sg;
+                          return levelMatches && genderMatches;
+                        })
+                        .map((p) => {
+                          const checked = groupPlayerSelections.includes(p.id);
+                          const disableUnchecked =
+                            !checked && groupPlayerSelections.length >= selectedGroup.max_players;
+
+                          return (
+                            <label key={p.id} className="flex items-center gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={selectedGroup.is_locked || disableUnchecked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setGroupPlayerSelections((prev) => [...prev, p.id]);
+                                  } else {
+                                    setGroupPlayerSelections((prev) => prev.filter((id) => id !== p.id));
+                                  }
+                                }}
+                              />
+                              <span>{p.name}</span>
+                            </label>
+                          );
+                        })}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Only players with level <strong>{selectedGroup.tennis_level}</strong> and gender{" "}
+                      <strong>{normalizeGender(selectedGroup.gender) || "Unspecified"}</strong> are listed.
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      onClick={handleSaveGroupPlayers}
+                      disabled={selectedGroup.is_locked || isSavingGroupPlayers}
+                    >
+                      {isSavingGroupPlayers ? "Saving..." : "Save Players"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleLockGroup}
+                      disabled={selectedGroup.is_locked || isLockingGroup}
+                    >
+                      {isLockingGroup ? "Locking..." : "Finalize Group & Generate Round Robin"}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="bg-card border rounded-md p-4 space-y-4">
+                  <h2 className="text-lg font-bold">Standings</h2>
+                  <div className="overflow-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50">
+                        <tr>
+                          <th className="px-3 py-2 text-left">#</th>
+                          <th className="px-3 py-2 text-left">Player</th>
+                          <th className="px-3 py-2 text-left">W</th>
+                          <th className="px-3 py-2 text-left">L</th>
+                          <th className="px-3 py-2 text-left">Pts</th>
+                          <th className="px-3 py-2 text-left">Diff</th>
+                          <th className="px-3 py-2 text-left">Q</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {groupStandings.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">
+                              No standings yet.
+                            </td>
+                          </tr>
+                        ) : (
+                          groupStandings.map((s) => (
+                            <tr key={s.player_id} className="border-t">
+                              <td className="px-3 py-2">{s.rank}</td>
+                              <td className="px-3 py-2">{s.player_name}</td>
+                              <td className="px-3 py-2">{s.wins}</td>
+                              <td className="px-3 py-2">{s.losses}</td>
+                              <td className="px-3 py-2">{s.points}</td>
+                              <td className="px-3 py-2">{s.score_diff}</td>
+                              <td className="px-3 py-2">{s.is_qualified ? "Yes" : "-"}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {selectedGroup && (
+              <div className="bg-card border rounded-md p-4 space-y-4">
+                <h2 className="text-lg font-bold">Round Robin Matches</h2>
+                <div className="space-y-3">
+                  {groupMatches.length === 0 ? (
+                    <div className="text-sm text-muted-foreground">
+                      No fixtures yet. Lock the group after filling players to generate matches.
+                    </div>
+                  ) : (
+                    groupMatches.map((m, i) => (
+                      <div
+                        key={m.id}
+                        className="border rounded-md p-3 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"
+                      >
+                        <div className="text-sm">
+                          <span className="font-semibold mr-2">#{i + 1}</span>
+                          {m.player1_name} vs {m.player2_name}
+                          <span className="ml-2 text-muted-foreground">({m.status})</span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Input
+                            className="w-20"
+                            type="number"
+                            value={groupScoreInputs[m.id]?.p1 ?? "0"}
+                            onChange={(e) =>
+                              setGroupScoreInputs((prev) => ({
+                                ...prev,
+                                [m.id]: { p1: e.target.value, p2: prev[m.id]?.p2 ?? "0" },
+                              }))
+                            }
+                            disabled={!selectedGroup.is_locked || m.status === "completed"}
+                          />
+                          <span>-</span>
+                          <Input
+                            className="w-20"
+                            type="number"
+                            value={groupScoreInputs[m.id]?.p2 ?? "0"}
+                            onChange={(e) =>
+                              setGroupScoreInputs((prev) => ({
+                                ...prev,
+                                [m.id]: { p1: prev[m.id]?.p1 ?? "0", p2: e.target.value },
+                              }))
+                            }
+                            disabled={!selectedGroup.is_locked || m.status === "completed"}
+                          />
+                          <Button
+                            variant="outline"
+                            onClick={() => handleSaveGroupMatchResult(m.id)}
+                            disabled={!selectedGroup.is_locked || m.status === "completed"}
+                          >
+                            {m.status === "completed" ? "Saved" : "Save Result"}
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -876,6 +1420,9 @@ export default function AdminDashboard() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{isEditingPlayer ? "Edit Player" : "Add Player"}</DialogTitle>
+            <DialogDescription>
+              Fill player details and save changes.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
@@ -999,6 +1546,9 @@ export default function AdminDashboard() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{isEditingMatch ? "Edit Match" : "Add Match"}</DialogTitle>
+            <DialogDescription>
+              Configure matchup details and scheduling.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
@@ -1096,6 +1646,9 @@ export default function AdminDashboard() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Complete Match</DialogTitle>
+            <DialogDescription>
+              Enter final sets and games for both players.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="grid grid-cols-2 gap-4 py-2">
@@ -1152,6 +1705,9 @@ export default function AdminDashboard() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{isEditingTournament ? "Edit Tournament" : "Add Tournament"}</DialogTitle>
+            <DialogDescription>
+              Create or update tournament metadata.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
@@ -1219,12 +1775,17 @@ export default function AdminDashboard() {
 
             <div className="space-y-2">
               <Label htmlFor="tournament-surface">Surface</Label>
-              <Input
+              <select
                 id="tournament-surface"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={tournamentForm.surface}
                 onChange={(e) => setTournamentForm((prev) => ({ ...prev, surface: e.target.value }))}
-                placeholder="e.g. hard, clay, grass"
-              />
+              >
+                <option value="">Select surface</option>
+                <option value="Hard">Hard</option>
+                <option value="Clay">Clay</option>
+                <option value="Grass">Grass</option>
+              </select>
             </div>
           </div>
 
@@ -1234,6 +1795,97 @@ export default function AdminDashboard() {
             </Button>
             <Button onClick={handleSaveTournament} disabled={isSavingTournament}>
               {isSavingTournament ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isGroupDialogOpen} onOpenChange={setIsGroupDialogOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Create Group</DialogTitle>
+            <DialogDescription>
+              Set group level, capacity, and qualifier count.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="group-designation">Group Designation</Label>
+              <Input
+                id="group-designation"
+                placeholder="A, B, C..."
+                value={groupForm.designation}
+                onChange={(e) => setGroupForm((prev) => ({ ...prev, designation: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="group-gender">Group Gender</Label>
+              <select
+                id="group-gender"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={groupForm.gender}
+                onChange={(e) =>
+                  setGroupForm((prev) => ({
+                    ...prev,
+                    gender: e.target.value as GroupForm["gender"],
+                  }))
+                }
+              >
+                <option value="Men">Men</option>
+                <option value="Women">Women</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="group-level">Tennis Level</Label>
+              <select
+                id="group-level"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={groupForm.tennis_level}
+                onChange={(e) =>
+                  setGroupForm((prev) => ({
+                    ...prev,
+                    tennis_level: e.target.value as GroupForm["tennis_level"],
+                  }))
+                }
+              >
+                <option value="Beginner">Beginner</option>
+                <option value="Intermediate">Intermediate</option>
+                <option value="Advanced">Advanced</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="group-max-players">Max Players</Label>
+              <Input
+                id="group-max-players"
+                type="number"
+                min={2}
+                value={groupForm.max_players}
+                onChange={(e) => setGroupForm((prev) => ({ ...prev, max_players: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="group-qualifiers">Qualifiers</Label>
+              <Input
+                id="group-qualifiers"
+                type="number"
+                min={1}
+                value={groupForm.qualifiers_count}
+                onChange={(e) => setGroupForm((prev) => ({ ...prev, qualifiers_count: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setIsGroupDialogOpen(false)} disabled={isSavingGroup}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveGroup} disabled={isSavingGroup}>
+              {isSavingGroup ? "Saving..." : "Save"}
             </Button>
           </div>
         </DialogContent>

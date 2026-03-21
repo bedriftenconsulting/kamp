@@ -1,0 +1,3 @@
+ALTER TABLE players
+  ADD COLUMN IF NOT EXISTS tournament_id UUID,
+  ADD COLUMN IF NOT EXISTS tournament_name VARCHAR(255);

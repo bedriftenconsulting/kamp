@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"time"
 
@@ -21,8 +22,8 @@ func NewPlayerRepository(db *pgxpool.Pool) *PlayerRepository {
 func (r *PlayerRepository) Create(ctx context.Context, p *model.Player) error {
 	if strings.TrimSpace(p.ID) == "" {
 		query := `
-		INSERT INTO players (first_name, last_name, date_of_birth, nationality, gender, age, tennis_level, ranking, bio, profile_image_url)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO players (first_name, last_name, date_of_birth, nationality, tournament_id, tournament_name, gender, age, tennis_level, ranking, bio, profile_image_url)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING id, created_at, updated_at
 		`
 
@@ -31,6 +32,8 @@ func (r *PlayerRepository) Create(ctx context.Context, p *model.Player) error {
 			p.LastName,
 			nullableDate(p.DateOfBirth),
 			p.Nationality,
+			nullIfEmpty(p.TournamentID),
+			p.TournamentName,
 			p.Gender,
 			p.Age,
 			p.TennisLevel,
@@ -41,8 +44,8 @@ func (r *PlayerRepository) Create(ctx context.Context, p *model.Player) error {
 	}
 
 	query := `
-	INSERT INTO players (id, first_name, last_name, date_of_birth, nationality, gender, age, tennis_level, ranking, bio, profile_image_url)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	INSERT INTO players (id, first_name, last_name, date_of_birth, nationality, tournament_id, tournament_name, gender, age, tennis_level, ranking, bio, profile_image_url)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 	RETURNING created_at, updated_at
 	`
 
@@ -52,6 +55,8 @@ func (r *PlayerRepository) Create(ctx context.Context, p *model.Player) error {
 		p.LastName,
 		nullableDate(p.DateOfBirth),
 		p.Nationality,
+		nullIfEmpty(p.TournamentID),
+		p.TournamentName,
 		p.Gender,
 		p.Age,
 		p.TennisLevel,
@@ -63,7 +68,22 @@ func (r *PlayerRepository) Create(ctx context.Context, p *model.Player) error {
 
 func (r *PlayerRepository) GetAll(ctx context.Context) ([]model.Player, error) {
 	query := `
-	SELECT id, first_name, last_name, date_of_birth, nationality, gender, age, tennis_level, ranking, bio, profile_image_url, created_at, updated_at
+	SELECT
+		id,
+		COALESCE(first_name, ''),
+		COALESCE(last_name, ''),
+		date_of_birth,
+		COALESCE(nationality, ''),
+		COALESCE(tournament_id::text, ''),
+		COALESCE(tournament_name, ''),
+		COALESCE(gender, ''),
+		COALESCE(age, 0),
+		COALESCE(tennis_level, ''),
+		COALESCE(ranking, 0),
+		COALESCE(bio, ''),
+		COALESCE(profile_image_url, ''),
+		created_at,
+		updated_at
 	FROM players
 	ORDER BY ranking ASC
 	`
@@ -78,13 +98,15 @@ func (r *PlayerRepository) GetAll(ctx context.Context) ([]model.Player, error) {
 
 	for rows.Next() {
 		var p model.Player
-		var dob *time.Time
+		var dob sql.NullTime
 		err := rows.Scan(
 			&p.ID,
 			&p.FirstName,
 			&p.LastName,
 			&dob,
 			&p.Nationality,
+			&p.TournamentID,
+			&p.TournamentName,
 			&p.Gender,
 			&p.Age,
 			&p.TennisLevel,
@@ -97,8 +119,8 @@ func (r *PlayerRepository) GetAll(ctx context.Context) ([]model.Player, error) {
 		if err != nil {
 			return nil, err
 		}
-		if dob != nil {
-			p.DateOfBirth = *dob
+		if dob.Valid {
+			p.DateOfBirth = dob.Time
 		}
 		players = append(players, p)
 	}
@@ -117,14 +139,16 @@ func (r *PlayerRepository) Update(ctx context.Context, p *model.Player) error {
 	    last_name = $2,
 	    date_of_birth = $3,
 	    nationality = $4,
-	    gender = $5,
-	    age = $6,
-	    tennis_level = $7,
-	    ranking = $8,
-	    bio = $9,
-	    profile_image_url = $10,
+	    tournament_id = $5,
+	    tournament_name = $6,
+	    gender = $7,
+	    age = $8,
+	    tennis_level = $9,
+	    ranking = $10,
+	    bio = $11,
+	    profile_image_url = $12,
 	    updated_at = CURRENT_TIMESTAMP
-	WHERE id = $11
+	WHERE id = $13
 	`
 
 	_, err := r.db.Exec(ctx, query,
@@ -132,6 +156,8 @@ func (r *PlayerRepository) Update(ctx context.Context, p *model.Player) error {
 		p.LastName,
 		nullableDate(p.DateOfBirth),
 		p.Nationality,
+		nullIfEmpty(p.TournamentID),
+		p.TournamentName,
 		p.Gender,
 		p.Age,
 		p.TennisLevel,
@@ -153,4 +179,11 @@ func nullableDate(t time.Time) interface{} {
 		return nil
 	}
 	return t
+}
+
+func nullIfEmpty(v string) interface{} {
+	if strings.TrimSpace(v) == "" {
+		return nil
+	}
+	return v
 }

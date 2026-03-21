@@ -21,6 +21,8 @@ type playerRequest struct {
 	LastName        string `json:"last_name" binding:"required"`
 	DateOfBirth     string `json:"date_of_birth"`
 	Nationality     string `json:"nationality"`
+	TournamentID    string `json:"tournament_id"`
+	TournamentName  string `json:"tournament_name"`
 	Gender          string `json:"gender"`
 	Age             int    `json:"age"`
 	TennisLevel     string `json:"tennis_level"`
@@ -122,6 +124,8 @@ func buildPlayerFromRequest(input playerRequest) (*model.Player, error) {
 		LastName:        input.LastName,
 		DateOfBirth:     dob,
 		Nationality:     input.Nationality,
+		TournamentID:    input.TournamentID,
+		TournamentName:  input.TournamentName,
 		Gender:          input.Gender,
 		Age:             input.Age,
 		TennisLevel:     input.TennisLevel,

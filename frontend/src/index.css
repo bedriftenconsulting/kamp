@@ -83,6 +83,18 @@
 }
 
 @layer base {
+  .public-theme-pink {
+    --primary: 334 78% 45%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 330 86% 90%;
+    --secondary-foreground: 330 55% 24%;
+    --accent: 330 86% 90%;
+    --accent-foreground: 330 55% 24%;
+    --ring: 334 78% 45%;
+    --border: 334 35% 88%;
+    --input: 334 35% 88%;
+  }
+
   * {
     @apply border-border;
   }

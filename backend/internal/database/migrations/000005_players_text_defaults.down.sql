@@ -1,0 +1,3 @@
+ALTER TABLE players
+  ALTER COLUMN bio DROP DEFAULT,
+  ALTER COLUMN profile_image_url DROP DEFAULT;

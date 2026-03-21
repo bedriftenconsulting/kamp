@@ -1,7 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 
 const navItems = [
   { label: "Home", path: "/" },
@@ -44,16 +43,6 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Link to="/admin">
-            <Button size="sm" variant="outline" className="hidden md:inline-flex border-primary-foreground/30 text-primary hover:bg-primary-foreground/20 hover:text-primary">
-              Admin
-            </Button>
-          </Link>
-          <Link to="/umpire">
-            <Button size="sm" className="hidden md:inline-flex bg-secondary text-secondary-foreground hover:bg-secondary/90 font-semibold">
-              Umpire
-            </Button>
-          </Link>
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
             className="md:hidden text-primary-foreground p-2"
@@ -80,13 +69,6 @@ export default function Header() {
                 {item.label}
               </Link>
             ))}
-            <div className="flex gap-2 mt-2 px-3">
-              <Link to="/admin" onClick={() => setMobileOpen(false)}>
-                <Button size="sm" variant="outline" className="border-primary-foreground/30 text-primary hover:bg-primary-foreground/20 hover:text-primary">
-                  Log In
-                </Button>
-              </Link>
-            </div>
           </nav>
         </div>
       )}

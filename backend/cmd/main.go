@@ -8,6 +8,9 @@ import (
 	"time"
 
 	"kamp/internal/config"
+	groupHandler "kamp/internal/modules/group/handler"
+	groupRepo "kamp/internal/modules/group/repository"
+	groupService "kamp/internal/modules/group/service"
 	matchHandler "kamp/internal/modules/match/handler"
 	matchRepo "kamp/internal/modules/match/repository"
 	matchService "kamp/internal/modules/match/service"
@@ -137,6 +140,10 @@ func main() {
 	scoringSvc := scoringService.NewScoringService(scoringRepo, matchRepo)
 	scoringHdl := scoringHandler.NewScoringHandler(scoringSvc)
 
+	groupRepo := groupRepo.NewGroupRepository(db)
+	groupSvc := groupService.NewGroupService(groupRepo)
+	groupHdl := groupHandler.NewGroupHandler(groupSvc)
+
 	// =============================
 	// API Routes
 	// =============================
@@ -169,6 +176,16 @@ func main() {
 		// Scoring
 		api.POST("/matches/:id/point", scoringHdl.AddPoint)
 		api.GET("/matches/:id/state", scoringHdl.GetMatchState)
+
+		// Groups (Round Robin)
+		api.POST("/groups", groupHdl.CreateGroup)
+		api.GET("/groups", groupHdl.GetGroups)
+		api.PUT("/groups/:id/players", groupHdl.SetPlayers)
+		api.GET("/groups/:id/players", groupHdl.GetGroupPlayers)
+		api.POST("/groups/:id/lock", groupHdl.LockGroup)
+		api.GET("/groups/:id/matches", groupHdl.GetMatches)
+		api.PUT("/groups/:id/matches/:matchId/result", groupHdl.SaveResult)
+		api.GET("/groups/:id/standings", groupHdl.GetStandings)
 	}
 
 	// ✅ Start WebSocket listener
