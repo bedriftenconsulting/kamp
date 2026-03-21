@@ -133,8 +133,32 @@ func (r *MatchRepository) Update(ctx context.Context, m *model.Match) error {
 }
 
 func (r *MatchRepository) Delete(ctx context.Context, matchID string) error {
-	_, err := r.db.Exec(ctx, `DELETE FROM matches WHERE id = $1`, matchID)
-	return err
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	// If this was generated from a group-stage fixture, reset the group match
+	// as unplayed and detach it from this main match.
+	if _, err := tx.Exec(ctx, `
+		UPDATE group_matches
+		SET player1_score = 0,
+		    player2_score = 0,
+		    winner_id = NULL,
+		    status = 'scheduled',
+		    main_match_id = NULL,
+		    updated_at = CURRENT_TIMESTAMP
+		WHERE main_match_id = $1
+	`, matchID); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, `DELETE FROM matches WHERE id = $1`, matchID); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
 }
 
 func (r *MatchRepository) Complete(ctx context.Context, matchID string, winnerID *string, p1Sets, p2Sets, p1Games, p2Games int) error {

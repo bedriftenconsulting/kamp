@@ -1041,6 +1041,7 @@ export default function AdminDashboard() {
                     <th className="px-4 py-3 text-left">Result</th>
                     <th className="px-4 py-3 text-left">Winner</th>
                     <th className="px-4 py-3 text-left">Status</th>
+                    <th className="px-4 py-3 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1056,6 +1057,18 @@ export default function AdminDashboard() {
                       </td>
                       <td className="px-4 py-3">{m.winner_name || "-"}</td>
                       <td className="px-4 py-3 capitalize">{m.status}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end">
+                          <Button
+                            variant="destructive"
+                            size="icon"
+                            onClick={() => handleDeleteMatch(m.id)}
+                            disabled={deletingMatchId === m.id}
+                          >
+                            <Trash2 size={14} />
+                          </Button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
