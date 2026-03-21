@@ -257,37 +257,6 @@ export default function Index() {
           </div>
         </section>
       )}
-
-      {/* Tournament Info */}
-      <section className="py-12 bg-background">
-        <div className="container grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="p-6 border rounded-md">
-            <Trophy className="mb-3" />
-            <h3 className="font-bold">2 Categories</h3>
-            <p className="text-sm text-muted-foreground">
-              Men & Women Singles
-            </p>
-          </div>
-
-          <div className="p-6 border rounded-md">
-            <MapPin className="mb-3" />
-            <h3 className="font-bold">{tournament.venue}</h3>
-            <p className="text-sm text-muted-foreground">
-              {tournament.location}
-            </p>
-          </div>
-
-          <div className="p-6 border rounded-md">
-            <Calendar className="mb-3" />
-            <h3 className="font-bold">Tournament Duration</h3>
-            <p className="text-sm text-muted-foreground">
-              {new Date(tournament.startDate).toLocaleDateString()} -{" "}
-              {new Date(tournament.endDate).toLocaleDateString()}
-            </p>
-          </div>
-        </div>
-      </section>
-
       {/* Participants */}
       <section className="py-12 bg-muted/30">
         <div className="container">
@@ -326,6 +295,38 @@ export default function Index() {
           </div>
         </div>
       </section>
+      
+      {/* Tournament Info */}
+      <section className="py-12 bg-background">
+        <div className="container grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="p-6 border rounded-md">
+            <Trophy className="mb-3" />
+            <h3 className="font-bold">2 Categories</h3>
+            <p className="text-sm text-muted-foreground">
+              Men & Women Singles
+            </p>
+          </div>
+
+          <div className="p-6 border rounded-md">
+            <MapPin className="mb-3" />
+            <h3 className="font-bold">{tournament.venue}</h3>
+            <p className="text-sm text-muted-foreground">
+              {tournament.location}
+            </p>
+          </div>
+
+          <div className="p-6 border rounded-md">
+            <Calendar className="mb-3" />
+            <h3 className="font-bold">Tournament Duration</h3>
+            <p className="text-sm text-muted-foreground">
+              {new Date(tournament.startDate).toLocaleDateString()} -{" "}
+              {new Date(tournament.endDate).toLocaleDateString()}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      
     </div>
   );
 }
