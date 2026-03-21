@@ -484,8 +484,10 @@ func (r *GroupRepository) GetStandings(ctx context.Context, groupID string, qual
 			return nil, err
 		}
 		s.ScoreDiff = s.ScoreFor - s.ScoreAgainst
-		// Group scoring rule: 15 points per win.
-		s.Points = s.Wins * 15
+		// Standings points:
+		// - 15 bonus points per win
+		// - plus scored match points (so losing players also get visible points)
+		s.Points = (s.Wins * 15) + s.ScoreFor
 		s.Rank = rank
 		s.IsQualified = rank <= qualifiers
 		standings = append(standings, s)
