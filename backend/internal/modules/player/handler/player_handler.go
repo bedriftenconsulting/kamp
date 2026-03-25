@@ -14,7 +14,7 @@ import (
 type PlayerHandler struct {
 	service *service.PlayerService
 }
-
+//this struct is used forReceiving JSON from the client (curl, frontend, etc.)
 type playerRequest struct {
 	ID              string `json:"id"`
 	FirstName       string `json:"first_name" binding:"required"`
@@ -31,6 +31,7 @@ type playerRequest struct {
 	ProfileImageURL string `json:"profile_image_url"`
 }
 
+//this is constructor for player handler
 func NewPlayerHandler(service *service.PlayerService) *PlayerHandler {
 	return &PlayerHandler{service: service}
 }

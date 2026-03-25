@@ -10,7 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
+//store db connection
 type PlayerRepository struct {
 	db *pgxpool.Pool
 }
@@ -20,6 +20,7 @@ func NewPlayerRepository(db *pgxpool.Pool) *PlayerRepository {
 }
 
 func (r *PlayerRepository) Create(ctx context.Context, p *model.Player) error {
+	//Check if player ID is empty
 	if strings.TrimSpace(p.ID) == "" {
 		query := `
 		INSERT INTO players (first_name, last_name, date_of_birth, nationality, tournament_id, tournament_name, gender, age, tennis_level, ranking, bio, profile_image_url)

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import ScoreCard from "@/components/matches/ScoreCard";
+import LiveScoreCard from "@/components/matches/LiveScoreCard";
 import { Zap } from "lucide-react";
 import { API_V1_URL } from "@/lib/api-url";
 
@@ -86,7 +87,14 @@ export default function LiveScores() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {liveMatches.map((match) => (
-              <ScoreCard key={match.id} match={match} />
+              <LiveScoreCard
+                key={match.id}
+                match={match}
+                onMatchFinished={() => {
+                  // Re-fetch after a short delay to let backend update
+                  setTimeout(fetchMatches, 1500);
+                }}
+              />
             ))}
           </div>
         </section>

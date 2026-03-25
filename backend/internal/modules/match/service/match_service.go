@@ -25,7 +25,7 @@ func NewMatchService(repo *repository.MatchRepository) *MatchService {
 
 func (s *MatchService) CreateMatch(ctx context.Context, m *model.Match) error {
 	if m.Status == "" {
-		m.Status = "scheduled"
+		m.Status = "scheduled" 
 	}
 	if err := validatePlayers(m.Player1ID, m.Player2ID); err != nil {
 		return err

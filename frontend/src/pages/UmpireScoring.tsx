@@ -1,261 +1,240 @@
-import { useState, useCallback } from "react";
-import { Undo2, Check, Shield } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { Shield, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { players } from "@/data/mockData";
+import { api } from "@/api/api";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import { motion } from "framer-motion";
 
-interface UmpireMatchState {
-  player1: string;
-  player2: string;
-  sets: [number, number][];
-  currentGame: [number, number];
-  servingPlayer: 0 | 1;
-  history: string[];
-  matchOver: boolean;
-  winner: string | null;
-  bestOf: 3 | 5;
-}
-
-const POINT_SEQUENCE = [0, 15, 30, 40];
-
-function getInitialState(): UmpireMatchState {
-  return {
-    player1: players[0].name,
-    player2: players[3].name,
-    sets: [[0, 0]],
-    currentGame: [0, 0],
-    servingPlayer: 0,
-    history: [],
-    matchOver: false,
-    winner: null,
-    bestOf: 3,
-  };
-}
-
 export default function UmpireScoring() {
-  const [state, setState] = useState<UmpireMatchState>(getInitialState());
-  const [showLogin, setShowLogin] = useState(true);
+  const [matches, setMatches] = useState<any[]>([]);
+  const [selectedMatch, setSelectedMatch] = useState<any>(null);
+  const [scoringState, setScoringState] = useState<any>(null);
 
-  const scorePoint = useCallback((playerIdx: 0 | 1) => {
-    setState((prev) => {
-      if (prev.matchOver) return prev;
-
-      const next = { ...prev, history: [...prev.history, JSON.stringify(prev)] };
-      const game = [...prev.currentGame] as [number, number];
-      const otherIdx = (1 - playerIdx) as 0 | 1;
-      const currentSet = [...prev.sets[prev.sets.length - 1]] as [number, number];
-      const sets = prev.sets.map((s) => [...s] as [number, number]);
-
-      // Deuce logic
-      if (game[0] === 40 && game[1] === 40) {
-        // Advantage or win
-        game[playerIdx] = 50; // "AD"
-        next.currentGame = game;
-        return next;
-      }
-
-      if (game[playerIdx] === 50) {
-        // Win the game from AD
-        return winGame(next, sets, currentSet, playerIdx, otherIdx);
-      }
-
-      if (game[otherIdx] === 50) {
-        // Back to deuce
-        game[0] = 40;
-        game[1] = 40;
-        next.currentGame = game;
-        return next;
-      }
-
-      const currentIdx = POINT_SEQUENCE.indexOf(game[playerIdx]);
-      if (game[playerIdx] === 40) {
-        // Win the game
-        return winGame(next, sets, currentSet, playerIdx, otherIdx);
-      }
-
-      game[playerIdx] = POINT_SEQUENCE[currentIdx + 1];
-      next.currentGame = game;
-      return next;
+  // Load matches
+  useEffect(() => {
+    api.getMatches().then((data) => {
+      const availableMatches = data.filter(
+        (m: any) => m.status === "scheduled" || m.status === "live"
+      );
+      setMatches(availableMatches);
     });
   }, []);
 
-  const undoLast = useCallback(() => {
-    setState((prev) => {
-      if (prev.history.length === 0) return prev;
-      return JSON.parse(prev.history[prev.history.length - 1]);
-    });
-  }, []);
+  // Web socket for live scoring updates
+  useWebSocket(selectedMatch?.id || "", (data) => {
+    if (data.type === "score_update") {
+      setScoringState(data.state);
+    }
+  });
 
-  if (showLogin) {
+  // Load initial score state when a match is selected
+  useEffect(() => {
+    if (selectedMatch) {
+      api.getMatchState(selectedMatch.id).then((state) => {
+        setScoringState(state);
+      });
+    }
+  }, [selectedMatch]);
+
+  const handleSelectMatch = async (match: any) => {
+    if (match.status === "scheduled") {
+      // Set to live
+      await api.updateMatch(match.id, {
+        tournament_id: match.tournament_id || "",
+        player1_id: match.player1_id,
+        player2_id: match.player2_id,
+        round: match.round,
+        status: "live",
+      });
+      match.status = "live";
+    }
+    setSelectedMatch(match);
+  };
+
+  const scorePoint = useCallback(
+    async (playerIdx: 1 | 2) => {
+      if (!selectedMatch) return;
+      // Backend automatically determines if match is over, tiebreaks, etc.
+      const newState = await api.addPoint(selectedMatch.id, playerIdx);
+      setScoringState(newState);
+    },
+    [selectedMatch]
+  );
+
+  if (!selectedMatch) {
     return (
-      <div className="min-h-screen bg-primary flex items-center justify-center p-4">
+      <div className="min-h-screen bg-primary flex flex-col items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-card rounded-md p-8 w-full max-w-sm text-center"
+          className="bg-card rounded-md p-8 w-full max-w-md text-center border"
         >
           <Shield size={48} className="mx-auto text-primary mb-4" />
-          <h1 className="text-2xl font-black mb-2">Umpire Login</h1>
-          <p className="text-sm text-muted-foreground mb-6">Sign in to access your assigned matches</p>
-          <Button
-            onClick={() => setShowLogin(false)}
-            className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-bold"
-            size="lg"
-          >
-            Enter Scoring Mode
-          </Button>
-          <p className="text-xs text-muted-foreground mt-4">Demo mode — no authentication required</p>
+          <h1 className="text-2xl font-black mb-2">Umpire Dashboard</h1>
+          <p className="text-sm text-muted-foreground mb-6">
+            Select a match to start scoring
+          </p>
+
+          <div className="flex flex-col gap-3 max-h-[60vh] overflow-y-auto pr-2">
+            {matches.length === 0 ? (
+              <p className="text-muted-foreground text-sm py-4">
+                No active or scheduled matches available.
+              </p>
+            ) : (
+              matches.map((match) => (
+                <Button
+                  key={match.id}
+                  variant="outline"
+                  onClick={() => handleSelectMatch(match)}
+                  className="flex flex-col items-start p-4 h-auto border-primary/20 hover:border-primary w-full"
+                >
+                  <div className="flex items-center gap-2 mb-2 w-full">
+                    {match.status === "live" && (
+                      <span className="w-2 h-2 rounded-full bg-live animate-pulse-live" />
+                    )}
+                    <span className="text-xs font-bold uppercase text-muted-foreground">
+                      {match.round}
+                    </span>
+                  </div>
+                  <div className="font-bold text-base flex justify-between w-full">
+                    <span>{match.player1_name}</span>
+                    <span className="text-muted-foreground font-normal">vs</span>
+                    <span>{match.player2_name}</span>
+                  </div>
+                </Button>
+              ))
+            )}
+          </div>
         </motion.div>
       </div>
     );
   }
 
-  const gameScoreDisplay = (val: number) => {
-    if (val === 50) return "AD";
-    return String(val);
-  };
-
-  const currentSet = state.sets[state.sets.length - 1];
-
+  // The scoring UI
   return (
     <div className="min-h-screen bg-primary flex flex-col">
-      {/* Scoreboard */}
       <div className="bg-primary p-4 pt-6">
         <div className="max-w-lg mx-auto">
-          <div className="text-center mb-4">
-            <span className="text-xs font-bold uppercase text-secondary tracking-wider">Umpire Scoring</span>
+          <div className="flex items-center justify-between mb-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedMatch(null)}
+              className="border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+            >
+              Back
+            </Button>
+            <span className="flex items-center gap-1.5 px-3 py-1 bg-live/10 rounded-full">
+              <span className="w-2 h-2 rounded-full bg-live animate-pulse-live" />
+              <span className="text-xs font-bold uppercase text-live">LIVE</span>
+            </span>
           </div>
 
           {/* Score Display */}
           <div className="bg-primary-foreground/5 rounded-md border border-primary-foreground/10 overflow-hidden mb-4">
-            {[0, 1].map((idx) => (
-              <div
-                key={idx}
-                className={`flex items-center px-4 py-3 ${idx === 0 ? "" : "border-t border-primary-foreground/10"}`}
-              >
-                <div className="w-3 flex-shrink-0">
-                  {state.servingPlayer === idx && (
-                    <div className="w-2.5 h-2.5 rounded-full bg-secondary" />
-                  )}
-                </div>
-                <span className={`flex-1 text-primary-foreground font-bold text-base ${
-                  state.winner === (idx === 0 ? state.player1 : state.player2) ? "text-secondary" : ""
-                }`}>
-                  {idx === 0 ? state.player1 : state.player2}
-                </span>
-                <div className="flex items-center gap-0">
-                  {state.sets.map((set, si) => (
-                    <span
-                      key={si}
-                      className={`score-font w-8 text-center text-lg font-bold ${
-                        set[idx] > set[1 - idx] ? "text-primary-foreground" : "text-primary-foreground/40"
-                      }`}
-                    >
-                      {set[idx]}
-                    </span>
-                  ))}
-                  <span className="score-font w-10 text-center text-xl font-black text-secondary bg-secondary/10 rounded-sm py-1">
-                    {gameScoreDisplay(state.currentGame[idx])}
+            {[1, 2].map((playerNum) => {
+              const playerName = playerNum === 1 ? selectedMatch.player1_name : selectedMatch.player2_name;
+              const points = scoringState ? scoringState[`player${playerNum}_points`] : "0";
+              const games = scoringState ? scoringState[`player${playerNum}_games`] : 0;
+              const sets = scoringState ? scoringState[`player${playerNum}_sets`] : 0;
+
+              return (
+                <div
+                  key={playerNum}
+                  className={`flex items-center px-4 py-4 ${
+                    playerNum === 2 ? "border-t border-primary-foreground/10" : ""
+                  }`}
+                >
+                  <span className="flex-1 text-primary-foreground font-bold text-lg">
+                    {playerName}
                   </span>
+                  <div className="flex items-center gap-4">
+                    <span className="score-font text-primary-foreground/60 w-8 text-center text-xl font-bold bg-primary-foreground/5 rounded px-2 py-1">
+                      {sets}
+                    </span>
+                    <span className="score-font text-primary-foreground w-8 text-center text-xl font-bold bg-primary-foreground/10 rounded px-2 py-1">
+                      {games}
+                    </span>
+                    <span className="score-font w-12 text-center text-2xl font-black text-secondary bg-secondary/10 rounded py-1">
+                      {points}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          {/* Match info */}
-          <div className="text-center text-xs text-primary-foreground/50">
-            Set {state.sets.length} · Game {currentSet[0] + currentSet[1] + 1} · Best of {state.bestOf}
+          <div className="text-center text-xs text-primary-foreground/50 flex justify-center gap-4">
+            <span>SETS</span>
+            <span>GAMES</span>
+            <span className="text-secondary/70">POINTS</span>
           </div>
         </div>
       </div>
 
-      {/* Scoring Buttons */}
-      <div className="flex-1 flex flex-col p-4 gap-3 max-w-lg mx-auto w-full">
-        {state.matchOver ? (
+      <div className="flex-1 flex flex-col p-4 gap-4 max-w-lg mx-auto w-full justify-center">
+        {scoringState?.match_finished ? (
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             className="flex-1 flex flex-col items-center justify-center text-center"
           >
-            <span className="text-6xl mb-4">🏆</span>
-            <h2 className="text-2xl font-black text-primary-foreground mb-2">Match Over</h2>
-            <p className="text-primary-foreground/70 text-lg font-semibold mb-6">{state.winner} wins!</p>
+            <span className="text-7xl mb-6">🏆</span>
+            <h2 className="text-3xl font-black text-primary-foreground mb-3">
+              Match Over
+            </h2>
+            <p className="text-primary-foreground/80 text-xl font-bold mb-2">
+              {scoringState.winner === "player1"
+                ? selectedMatch.player1_name
+                : selectedMatch.player2_name}{" "}
+              wins!
+            </p>
+            <p className="text-primary-foreground/50 text-sm mb-8">
+              {scoringState.player1_sets} – {scoringState.player2_sets} sets
+            </p>
             <Button
-              onClick={() => setState(getInitialState())}
-              className="bg-secondary text-secondary-foreground font-bold"
+              onClick={() => {
+                setScoringState(null);
+                setSelectedMatch(null);
+              }}
+              className="bg-secondary text-secondary-foreground font-bold px-8"
               size="lg"
             >
-              New Match
+              Back to Matches
             </Button>
           </motion.div>
         ) : (
           <>
             <button
-              onClick={() => scorePoint(0)}
-              className="flex-1 bg-secondary/90 hover:bg-secondary active:scale-[0.98] transition-all rounded-md flex items-center justify-center min-h-[120px]"
-            >
-              <span className="text-secondary-foreground font-black text-xl">{state.player1}</span>
-            </button>
-            <button
               onClick={() => scorePoint(1)}
-              className="flex-1 bg-primary-foreground/90 hover:bg-primary-foreground active:scale-[0.98] transition-all rounded-md flex items-center justify-center min-h-[120px]"
+              className="flex-1 bg-secondary hover:bg-secondary/90 active:scale-[0.98] transition-all rounded-xl flex items-center justify-center min-h-[140px] shadow-lg border border-secondary/20"
             >
-              <span className="text-primary font-black text-xl">{state.player2}</span>
+              <div className="flex flex-col items-center">
+                <span className="text-secondary-foreground font-black text-2xl mb-2">
+                  {selectedMatch.player1_name}
+                </span>
+                <span className="text-secondary-foreground/70 font-semibold text-sm bg-black/10 px-4 py-1 rounded-full uppercase tracking-wider">
+                  Score Point
+                </span>
+              </div>
             </button>
-            <div className="flex gap-3">
-              <Button
-                onClick={undoLast}
-                variant="outline"
-                className="flex-1 border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground gap-2"
-                disabled={state.history.length === 0}
-              >
-                <Undo2 size={16} />
-                Undo
-              </Button>
-              <Button
-                variant="outline"
-                className="flex-1 border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground gap-2"
-              >
-                <Check size={16} />
-                Submit
-              </Button>
-            </div>
+
+            <button
+              onClick={() => scorePoint(2)}
+              className="flex-1 bg-primary-foreground hover:bg-primary-foreground/90 active:scale-[0.98] transition-all rounded-xl flex items-center justify-center min-h-[140px] shadow-lg border border-primary-foreground/20"
+            >
+              <div className="flex flex-col items-center">
+                <span className="text-primary font-black text-2xl mb-2">
+                  {selectedMatch.player2_name}
+                </span>
+                <span className="text-primary/70 font-semibold text-sm bg-black/5 px-4 py-1 rounded-full uppercase tracking-wider">
+                  Score Point
+                </span>
+              </div>
+            </button>
           </>
         )}
       </div>
     </div>
   );
-}
-
-function winGame(
-  next: UmpireMatchState,
-  sets: [number, number][],
-  currentSet: [number, number],
-  playerIdx: 0 | 1,
-  otherIdx: 0 | 1
-): UmpireMatchState {
-  currentSet[playerIdx]++;
-  sets[sets.length - 1] = currentSet;
-  next.currentGame = [0, 0];
-  next.servingPlayer = (next.servingPlayer === 0 ? 1 : 0) as 0 | 1;
-
-  // Check if set is won (6 games with 2 lead, or 7-5, or tiebreak 7-6)
-  if (
-    (currentSet[playerIdx] >= 6 && currentSet[playerIdx] - currentSet[otherIdx] >= 2) ||
-    (currentSet[playerIdx] === 7)
-  ) {
-    // Set won
-    const setsWon = sets.filter((s) => s[playerIdx] > s[otherIdx]).length;
-    const setsNeeded = Math.ceil(next.bestOf / 2);
-
-    if (setsWon >= setsNeeded) {
-      next.matchOver = true;
-      next.winner = playerIdx === 0 ? next.player1 : next.player2;
-    } else {
-      sets.push([0, 0]);
-    }
-  }
-
-  next.sets = sets;
-  return next;
 }

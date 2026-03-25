@@ -2,6 +2,10 @@ package model
 
 import "time"
 
+//This is used for:
+
+//Business logic
+//Database operations
 type Player struct {
 	ID              string    `json:"id"`
 	FirstName       string    `json:"first_name"`

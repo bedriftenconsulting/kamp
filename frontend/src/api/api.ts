@@ -23,4 +23,15 @@ export const api = {
     });
     return res.json();
   },
+
+  updateMatch: async (matchId: string, matchData: any) => {
+    const res = await fetch(`${BASE_URL}/matches/${matchId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(matchData),
+    });
+    return res.json();
+  },
 };

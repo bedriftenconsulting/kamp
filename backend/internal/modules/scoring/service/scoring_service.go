@@ -42,95 +42,126 @@ func (s *ScoringService) AddPoint(ctx context.Context, matchID string, player in
 	s1 := getInt(state["player1_sets"])
 	s2 := getInt(state["player2_sets"])
 
-	newP1, newP2 := p1, p2
+	requiredSets := 2 // Best of 3
 
-	// 🔥 Detect tiebreak
+	// 1. Match Completion Protection
+	if s1 == requiredSets || s2 == requiredSets {
+		return state, nil
+	}
+
+	newP1, newP2 := p1, p2
+	gameWinner := 0
+	setWinner := 0
+
+	// 🔥 Detect tiebreak (6-6)
 	isTiebreak := (g1 == 6 && g2 == 6)
 
+	// 2. Point Update & Game Win Detection
 	if isTiebreak {
-		// Simple numeric scoring
+		// Tiebreak Logic
 		if player == 1 {
 			newP1 = incrementNumeric(p1)
 		} else {
 			newP2 = incrementNumeric(p2)
 		}
 
-		// Tiebreak win condition
 		p1Int := atoi(newP1)
 		p2Int := atoi(newP2)
 
 		if (p1Int >= 7 || p2Int >= 7) && abs(p1Int-p2Int) >= 2 {
 			if p1Int > p2Int {
-				s1++
+				setWinner = 1
 			} else {
-				s2++
+				setWinner = 2
 			}
-			g1, g2 = 0, 0
-			newP1, newP2 = "0", "0"
 		}
-
 	} else {
-		// Normal tennis scoring
-		if player == 1 {
-			newP1, newP2 = calculateNextPoint(p1, p2, true)
-		} else {
-			newP1, newP2 = calculateNextPoint(p1, p2, false)
-		}
+		// Normal Tennis Scoring
+		player1Scored := (player == 1)
+		newP1, newP2 = calculateNextPoint(p1, p2, player1Scored)
 
-		// Game win
 		if newP1 == "0" && newP2 == "0" {
 			if player == 1 {
-				g1++
+				gameWinner = 1
 			} else {
-				g2++
+				gameWinner = 2
 			}
 		}
 	}
 
-	// 🎯 Set win
-	if g1 >= 6 && g1-g2 >= 2 {
+	// 3. Update Games
+	if gameWinner == 1 {
+		g1++
+	} else if gameWinner == 2 {
+		g2++
+	}
+
+	// 4. Determine Set Winner (from normal games)
+	if !isTiebreak {
+		if g1 >= 6 && g1-g2 >= 2 {
+			setWinner = 1
+		} else if g2 >= 6 && g2-g1 >= 2 {
+			setWinner = 2
+		}
+	}
+
+	// 5. Update Sets
+	if setWinner == 1 {
 		s1++
 		g1, g2 = 0, 0
-	}
-
-	if g2 >= 6 && g2-g1 >= 2 {
+		newP1, newP2 = "0", "0"
+	} else if setWinner == 2 {
 		s2++
 		g1, g2 = 0, 0
+		newP1, newP2 = "0", "0"
 	}
 
-	// 🏆 Match win (best of 3)
+	// 6. Determine Match Winner
 	matchFinished := false
-	var winner string
+	winnerNum := 0
 
-	if s1 == 2 {
+	if s1 == requiredSets {
 		matchFinished = true
-		winner = "player1"
-	}
-
-	if s2 == 2 {
+		winnerNum = 1
+	} else if s2 == requiredSets {
 		matchFinished = true
-		winner = "player2"
+		winnerNum = 2
 	}
 
 	// Save event
-	err = s.repo.CreateEvent(ctx, matchID, "POINT", nil, "")
-	if err != nil {
+	if err := s.repo.CreateEvent(ctx, matchID, "POINT", nil, ""); err != nil {
 		return nil, err
 	}
 
 	// Update state
-	err = s.repo.UpdateFullState(ctx, matchID, newP1, newP2, g1, g2, s1, s2)
-	if err != nil {
+	if err := s.repo.UpdateFullState(ctx, matchID, newP1, newP2, g1, g2, s1, s2); err != nil {
 		return nil, err
 	}
 
-	// 🏁 Finish match
+	// 🏁 Finish match — resolve actual player UUID
 	if matchFinished {
-		// TODO: Replace with actual player IDs
-		_ = s.matchRepo.FinishMatch(ctx, matchID, winner)
+		p1ID, p2ID, err := s.matchRepo.GetPlayerIDs(ctx, matchID)
+		if err == nil {
+			winnerID := p1ID
+			if winnerNum == 2 {
+				winnerID = p2ID
+			}
+			_ = s.matchRepo.FinishMatch(ctx, matchID, winnerID)
+		}
 	}
 
-	return s.repo.GetMatchState(ctx, matchID)
+	// Return state with match_finished flag
+	finalState, err := s.repo.GetMatchState(ctx, matchID)
+	if err != nil {
+		return nil, err
+	}
+	finalState["match_finished"] = matchFinished
+	if winnerNum == 1 {
+		finalState["winner"] = "player1"
+	} else if winnerNum == 2 {
+		finalState["winner"] = "player2"
+	}
+	return finalState, nil
 }
 
 func (s *ScoringService) GetMatchState(ctx context.Context, matchID string) (map[string]interface{}, error) {

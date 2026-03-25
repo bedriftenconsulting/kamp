@@ -19,6 +19,10 @@ type Match struct {
 	Player1Name string `json:"player1_name"`
 	Player2Name string `json:"player2_name"`
 	WinnerName  string `json:"winner_name"`
-	Player1Score *int  `json:"player1_score,omitempty"`
-	Player2Score *int  `json:"player2_score,omitempty"`
+	Player1Score  *int    `json:"player1_score,omitempty"`
+	Player2Score  *int    `json:"player2_score,omitempty"`
+	Player1Games  *int    `json:"player1_games,omitempty"`
+	Player2Games  *int    `json:"player2_games,omitempty"`
+	Player1Points *string `json:"player1_points,omitempty"`
+	Player2Points *string `json:"player2_points,omitempty"`
 }

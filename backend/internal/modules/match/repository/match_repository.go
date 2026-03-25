@@ -52,8 +52,12 @@ func (r *MatchRepository) GetAll(ctx context.Context) ([]model.Match, error) {
 		COALESCE(p1.first_name || ' ' || p1.last_name, 'TBD') AS player1_name,
 		COALESCE(p2.first_name || ' ' || p2.last_name, 'TBD') AS player2_name,
 		COALESCE(pw.first_name || ' ' || pw.last_name, '') AS winner_name,
-		COALESCE(gm.player1_score, ms.player1_games) AS player1_score,
-		COALESCE(gm.player2_score, ms.player2_games) AS player2_score
+		COALESCE(gm.player1_score, ms.player1_sets) AS player1_score,
+		COALESCE(gm.player2_score, ms.player2_sets) AS player2_score,
+		ms.player1_games,
+		ms.player2_games,
+		COALESCE(ms.player1_points, '0') AS player1_points,
+		COALESCE(ms.player2_points, '0') AS player2_points
 	FROM matches m
 	LEFT JOIN players p1 ON m.player1_id = p1.id
 	LEFT JOIN players p2 ON m.player2_id = p2.id
@@ -91,6 +95,10 @@ func (r *MatchRepository) GetAll(ctx context.Context) ([]model.Match, error) {
 			&m.WinnerName,
 			&m.Player1Score,
 			&m.Player2Score,
+			&m.Player1Games,
+			&m.Player2Games,
+			&m.Player1Points,
+			&m.Player2Points,
 		)
 		if err != nil {
 			return nil, err
@@ -217,4 +225,16 @@ func (r *MatchRepository) FinishMatch(ctx context.Context, matchID, winnerID str
 
 	_, err := r.db.Exec(ctx, query, winnerID, matchID)
 	return err
+}
+
+// GetPlayerIDs returns the player1_id and player2_id for a given match.
+func (r *MatchRepository) GetPlayerIDs(ctx context.Context, matchID string) (string, string, error) {
+	query := `SELECT player1_id, player2_id FROM matches WHERE id = $1`
+
+	var p1ID, p2ID string
+	err := r.db.QueryRow(ctx, query, matchID).Scan(&p1ID, &p2ID)
+	if err != nil {
+		return "", "", err
+	}
+	return p1ID, p2ID, nil
 }
