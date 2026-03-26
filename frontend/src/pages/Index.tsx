@@ -164,7 +164,7 @@ export default function Index() {
             <div className="flex items-center gap-2 mb-6">
               <span className="px-3 py-1 text-xs font-bold uppercase bg-secondary text-secondary-foreground rounded-sm tracking-wider">
                 {tournament.status === "scheduled"
-                  ? "TODAY"
+                  ? "TOMORROW"
                   : "Now Playing"}
               </span>
 
@@ -295,7 +295,7 @@ export default function Index() {
           </div>
         </div>
       </section>
-      
+
       {/* Tournament Info */}
       <section className="py-12 bg-background">
         <div className="container grid grid-cols-1 md:grid-cols-3 gap-6">

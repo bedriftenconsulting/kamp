@@ -11,7 +11,6 @@ import {
   Plus,
   Pencil,
   Trash2,
-  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +28,7 @@ const tabs = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "players", label: "Players", icon: Users },
   { id: "groups", label: "Groups", icon: Blocks },
+  { id: "knockout", label: "Knockout", icon: Trophy },
   { id: "matches", label: "Matches", icon: Calendar },
   { id: "tournament", label: "Tournament", icon: Trophy },
 ];
@@ -161,6 +161,39 @@ type GroupStanding = {
   is_qualified: boolean;
 };
 
+type KnockoutLevel = "Beginner" | "Intermediate" | "Advanced";
+
+type KnockoutBracket = {
+  id: string;
+  tennis_level: KnockoutLevel;
+  status: string;
+  champion_id?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+type KnockoutMatch = {
+  id: string;
+  bracket_id: string;
+  round: string;
+  round_order: number;
+  match_number: number;
+  player1_id?: string | null;
+  player2_id?: string | null;
+  player1_name: string;
+  player2_name: string;
+  player1_score: number;
+  player2_score: number;
+  winner_id?: string | null;
+  winner_name?: string;
+  status: string;
+};
+
+type KnockoutView = {
+  bracket: KnockoutBracket | null;
+  matches: KnockoutMatch[];
+};
+
 type CompleteForm = {
   match_id: string;
   player1_id: string;
@@ -223,6 +256,8 @@ const emptyGroupForm: GroupForm = {
   max_players: "4",
   qualifiers_count: "2",
 };
+
+const knockoutLevels: KnockoutLevel[] = ["Beginner", "Intermediate", "Advanced"];
 
 const calculateAgeFromDOB = (dob?: string | null) => {
   if (!dob) return 0;
@@ -311,6 +346,20 @@ export default function AdminDashboard() {
   const [isSavingGroupPlayers, setIsSavingGroupPlayers] = useState(false);
   const [isLockingGroup, setIsLockingGroup] = useState(false);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
+  const [knockoutViews, setKnockoutViews] = useState<Record<KnockoutLevel, KnockoutView>>({
+    Beginner: { bracket: null, matches: [] },
+    Intermediate: { bracket: null, matches: [] },
+    Advanced: { bracket: null, matches: [] },
+  });
+  const [isGeneratingKnockout, setIsGeneratingKnockout] = useState<Record<KnockoutLevel, boolean>>({
+    Beginner: false,
+    Intermediate: false,
+    Advanced: false,
+  });
+  const [knockoutScoreInputs, setKnockoutScoreInputs] = useState<
+    Record<string, { p1: string; p2: string; winner_id: string }>
+  >({});
+  const [savingKnockoutMatchId, setSavingKnockoutMatchId] = useState<string | null>(null);
 
   const [matchPage, setMatchPage] = useState(1);
   const matchesPerPage = 20;
@@ -435,6 +484,113 @@ export default function AdminDashboard() {
       console.error("Failed to auto-load group details:", error);
     });
   }, [activeTab, groups, selectedGroupId]);
+
+  const loadKnockoutByLevel = async (level: KnockoutLevel) => {
+    const data = await fetchJSONOrFallback<any>(`${API_V1_URL}/knockout/${level.toLowerCase()}`, {
+      bracket: null,
+      matches: [],
+    });
+    const matches: KnockoutMatch[] = (Array.isArray(data?.matches) ? data.matches : []).map((m: any) => ({
+      id: m.id,
+      bracket_id: m.bracket_id,
+      round: m.round,
+      round_order: Number(m.round_order || 0),
+      match_number: Number(m.match_number || 0),
+      player1_id: m.player1_id || null,
+      player2_id: m.player2_id || null,
+      player1_name: m.player1_name || "TBD",
+      player2_name: m.player2_name || "TBD",
+      player1_score: Number(m.player1_score || 0),
+      player2_score: Number(m.player2_score || 0),
+      winner_id: m.winner_id || null,
+      winner_name: m.winner_name || "",
+      status: m.status || "scheduled",
+    }));
+    const view: KnockoutView = {
+      bracket: data?.bracket ?? null,
+      matches,
+    };
+
+    setKnockoutViews((prev) => ({ ...prev, [level]: view }));
+    setKnockoutScoreInputs((prev) => {
+      const next = { ...prev };
+      matches.forEach((m) => {
+        next[m.id] = {
+          p1: String(m.player1_score ?? 0),
+          p2: String(m.player2_score ?? 0),
+          winner_id: m.winner_id || "",
+        };
+      });
+      return next;
+    });
+  };
+
+  const loadAllKnockout = async () => {
+    await Promise.all(knockoutLevels.map((level) => loadKnockoutByLevel(level)));
+  };
+
+  useEffect(() => {
+    if (activeTab !== "knockout") return;
+    loadAllKnockout().catch((error) => {
+      console.error("Failed to load knockout data:", error);
+    });
+  }, [activeTab]);
+
+  const handleGenerateKnockout = async (level: KnockoutLevel) => {
+    setIsGeneratingKnockout((prev) => ({ ...prev, [level]: true }));
+    try {
+      const res = await fetch(`${API_V1_URL}/knockout/${level.toLowerCase()}/generate`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to generate ${level} knockout bracket`);
+      }
+      await loadKnockoutByLevel(level);
+    } catch (error: any) {
+      alert(error?.message || `Failed to generate ${level} knockout bracket`);
+    } finally {
+      setIsGeneratingKnockout((prev) => ({ ...prev, [level]: false }));
+    }
+  };
+
+  const handleSaveKnockoutResult = async (match: KnockoutMatch) => {
+    const input = knockoutScoreInputs[match.id];
+    if (!input) return;
+    if (!input.winner_id) {
+      alert("Select a winner before saving.");
+      return;
+    }
+
+    setSavingKnockoutMatchId(match.id);
+    try {
+      const res = await fetch(`${API_V1_URL}/knockout/matches/${match.id}/result`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          winner_id: input.winner_id,
+          player1_score: Number(input.p1 || 0),
+          player2_score: Number(input.p2 || 0),
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to save knockout result");
+      }
+
+      const level = (match.round && knockoutLevels.find((l) => knockoutViews[l].bracket?.id === match.bracket_id)) || null;
+      if (level) {
+        await loadKnockoutByLevel(level);
+      } else {
+        await loadAllKnockout();
+      }
+      await fetchData();
+    } catch (error: any) {
+      alert(error?.message || "Failed to save knockout result");
+    } finally {
+      setSavingKnockoutMatchId(null);
+    }
+  };
 
   const finalizedMatches = useMemo(
     () => matches.filter((m) => m.status === "completed"),
@@ -1093,6 +1249,167 @@ export default function AdminDashboard() {
                 </Button>
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === "knockout" && (
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-2xl font-black">Knockout Brackets</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Qualified players from completed round-robin groups advance into single-elimination playoffs by tennis level.
+              </p>
+            </div>
+
+            {knockoutLevels.map((level) => {
+              const view = knockoutViews[level];
+              const matchesByRound = view.matches.reduce<Record<number, KnockoutMatch[]>>((acc, match) => {
+                const key = Number(match.round_order || 0);
+                if (!acc[key]) acc[key] = [];
+                acc[key].push(match);
+                return acc;
+              }, {});
+              const sortedRoundOrders = Object.keys(matchesByRound)
+                .map(Number)
+                .sort((a, b) => a - b);
+              const championName =
+                view.matches.find((m) => m.winner_id && m.winner_id === view.bracket?.champion_id)?.winner_name || "-";
+
+              return (
+                <div key={level} className="bg-card border rounded-md p-4 space-y-4">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div>
+                      <h2 className="text-lg font-bold">{level} Knockout Bracket</h2>
+                      <div className="text-xs text-muted-foreground">
+                        Status: {view.bracket?.status || "not generated"} | Champion: {championName}
+                      </div>
+                    </div>
+                    <Button
+                      onClick={() => handleGenerateKnockout(level)}
+                      disabled={isGeneratingKnockout[level]}
+                    >
+                      {isGeneratingKnockout[level] ? "Generating..." : `Generate ${level} Bracket`}
+                    </Button>
+                  </div>
+
+                  {view.matches.length === 0 ? (
+                    <div className="text-sm text-muted-foreground">
+                      No knockout matches yet. Generate bracket after group standings are ready.
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {sortedRoundOrders.map((roundOrder) => (
+                        <div key={`${level}-${roundOrder}`} className="space-y-2">
+                          <h3 className="font-semibold">
+                            {matchesByRound[roundOrder][0]?.round || `Round ${roundOrder}`}
+                          </h3>
+                          <div className="space-y-2">
+                            {matchesByRound[roundOrder]
+                              .sort((a, b) => a.match_number - b.match_number)
+                              .map((match) => {
+                                const input = knockoutScoreInputs[match.id] || {
+                                  p1: "0",
+                                  p2: "0",
+                                  winner_id: "",
+                                };
+                                const isCompleted = match.status === "completed";
+                                const canEdit = !isCompleted && !!match.player1_id && !!match.player2_id;
+
+                                return (
+                                  <div
+                                    key={match.id}
+                                    className="border rounded-md p-3 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3"
+                                  >
+                                    <div className="text-sm">
+                                      <div className="font-medium">
+                                        Match {match.match_number}: {match.player1_name} vs {match.player2_name}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        Status: {match.status}
+                                        {match.winner_name ? ` | Winner: ${match.winner_name}` : ""}
+                                      </div>
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <Input
+                                        className="w-20"
+                                        type="number"
+                                        value={input.p1}
+                                        disabled={!canEdit}
+                                        onChange={(e) =>
+                                          setKnockoutScoreInputs((prev) => ({
+                                            ...prev,
+                                            [match.id]: {
+                                              p1: e.target.value,
+                                              p2: prev[match.id]?.p2 ?? "0",
+                                              winner_id: prev[match.id]?.winner_id ?? "",
+                                            },
+                                          }))
+                                        }
+                                      />
+                                      <span>-</span>
+                                      <Input
+                                        className="w-20"
+                                        type="number"
+                                        value={input.p2}
+                                        disabled={!canEdit}
+                                        onChange={(e) =>
+                                          setKnockoutScoreInputs((prev) => ({
+                                            ...prev,
+                                            [match.id]: {
+                                              p1: prev[match.id]?.p1 ?? "0",
+                                              p2: e.target.value,
+                                              winner_id: prev[match.id]?.winner_id ?? "",
+                                            },
+                                          }))
+                                        }
+                                      />
+                                      <select
+                                        className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                        value={input.winner_id}
+                                        disabled={!canEdit}
+                                        onChange={(e) =>
+                                          setKnockoutScoreInputs((prev) => ({
+                                            ...prev,
+                                            [match.id]: {
+                                              p1: prev[match.id]?.p1 ?? "0",
+                                              p2: prev[match.id]?.p2 ?? "0",
+                                              winner_id: e.target.value,
+                                            },
+                                          }))
+                                        }
+                                      >
+                                        <option value="">Winner</option>
+                                        {match.player1_id && (
+                                          <option value={match.player1_id}>{match.player1_name}</option>
+                                        )}
+                                        {match.player2_id && (
+                                          <option value={match.player2_id}>{match.player2_name}</option>
+                                        )}
+                                      </select>
+                                      <Button
+                                        variant="outline"
+                                        disabled={!canEdit || savingKnockoutMatchId === match.id}
+                                        onClick={() => handleSaveKnockoutResult(match)}
+                                      >
+                                        {isCompleted
+                                          ? "Saved"
+                                          : savingKnockoutMatchId === match.id
+                                            ? "Saving..."
+                                            : "Save Result"}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
