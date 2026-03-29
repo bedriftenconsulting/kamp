@@ -19,23 +19,33 @@ export default function Schedule() {
       const data = toList(matchesData);
 
       // ✅ Transform backend → frontend
-      const formattedMatches = data.map((m: any) => ({
-        id: m.id,
-        status: m.status,
-        round: m.round,
-        court: "Court 1", // temp
-        scheduledTime: m.scheduled_time,
-        player1: {
-          id: m.player1_id,
-          name: m.player1_name,
-        },
-        player2: {
-          id: m.player2_id,
-          name: m.player2_name,
-        },
-        winner: m.winner_id,
-        score: m.score || null, // ✅ now connected
-      }));
+      const formattedMatches = data.map((m: any) => {
+        const hasScore = m.player1_score != null || m.player2_score != null;
+        
+        return {
+          id: m.id,
+          status: m.status,
+          round: m.round,
+          court: "Court 1", // temp
+          scheduledTime: m.scheduled_time,
+          player1: {
+            id: m.player1_id,
+            name: m.player1_name,
+          },
+          player2: {
+            id: m.player2_id,
+            name: m.player2_name,
+          },
+          winner: m.winner_id,
+          // Construct the nested score object expected by UI components
+          score: hasScore ? {
+            sets: [[Number(m.player1_score || 0), Number(m.player2_score || 0)]],
+            currentGame: [Number(m.player1_games || 0), Number(m.player2_games || 0)],
+            currentPoints: [String(m.player1_points || "0"), String(m.player2_points || "0")],
+            servingPlayer: null, // would need live state for this
+          } : null,
+        };
+      });
 
       setMatches(formattedMatches);
     } catch (error) {
@@ -126,11 +136,14 @@ export default function Schedule() {
                             </span>
 
                             {m.score && (
-                              <span className="score-font ml-2">
-                                {m.score.sets
-                                  ?.map((s: number[]) => s[0])
-                                  .join(" ")}
-                              </span>
+                              <div className="flex gap-1 ml-2 font-black text-secondary">
+                                {m.score.sets?.[0]?.[0]}
+                                {m.status === 'live' && (
+                                  <span className="text-[10px] text-muted-foreground font-normal">
+                                    ({m.score.currentGame?.[0]})
+                                  </span>
+                                )}
+                              </div>
                             )}
                           </div>
 
@@ -145,15 +158,19 @@ export default function Schedule() {
                             </span>
 
                             {m.score && (
-                              <span className="score-font ml-2">
-                                {m.score.sets
-                                  ?.map((s: number[]) => s[1])
-                                  .join(" ")}
-                              </span>
+                              <div className="flex gap-1 ml-2 font-black text-secondary">
+                                {m.score.sets?.[0]?.[1]}
+                                {m.status === 'live' && (
+                                  <span className="text-[10px] text-muted-foreground font-normal">
+                                    ({m.score.currentGame?.[1]})
+                                  </span>
+                                )}
+                              </div>
                             )}
                           </div>
                         </div>
                       ))
+
                     ) : (
                       <div className="border rounded-sm text-xs border-dashed">
                         <div className="px-3 py-2 text-muted-foreground">

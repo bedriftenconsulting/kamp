@@ -11,8 +11,26 @@ export default function Index() {
   const [groups, setGroups] = useState<any[]>([]);
   const [groupMembersById, setGroupMembersById] = useState<Record<string, string[]>>({});
   const [tournament, setTournament] = useState<any | null>(null);
-  const [tournamentStyle, setTournamentStyle] = useState<{ banner_image_url: string; accent_color: string } | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // applyTournamentStyle
+  // ────────────────────
+  // Called after the tournament is fetched. Reads banner_image and
+  // accent_color from the API response (stored in the DB since migration 000010)
+  // and applies them:
+  //   - accent_color → sets the CSS custom property --t-accent on <html>, which
+  //     any element can reference with var(--t-accent). Adds the class
+  //     "with-tournament-accent" so targeted CSS rules activate.
+  //   - banner_image is used directly in the hero <section> backgroundImage style.
+  const applyTournamentStyle = (t: any) => {
+    if (t?.accent_color) {
+      document.documentElement.style.setProperty("--t-accent", t.accent_color);
+      document.documentElement.classList.add("with-tournament-accent");
+    } else {
+      document.documentElement.style.removeProperty("--t-accent");
+      document.documentElement.classList.remove("with-tournament-accent");
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -44,7 +62,9 @@ export default function Index() {
 
         const t = tournamentList[0];
 
-        // ✅ Transform tournament
+        // Build the formatted tournament object.
+        // banner_image and accent_color come directly from the DB row —
+        // no localStorage or secondary fetch is needed.
         const formattedTournament = {
           name: t.name,
           location: t.location,
@@ -52,7 +72,13 @@ export default function Index() {
           endDate: t.end_date,
           status: t.status,
           surface: t.surface ?? "unknown",
+          bannerImage: t.banner_image || "",  // base64 data URL or empty string
+          accentColor: t.accent_color || "",  // hex colour or empty string
         };
+
+        // Inject the accent colour into the CSS environment so all public
+        // pages that run while this tournament is active pick it up.
+        applyTournamentStyle(t);
 
 
         // ✅ Transform matches (FIXED STRUCTURE)
@@ -107,26 +133,6 @@ export default function Index() {
         setTournament(formattedTournament);
         setMatches(formattedMatches);
         setGroups(formattedGroups);
-
-        // Load per-tournament visual style from localStorage
-        try {
-          const styleRaw = localStorage.getItem(`tournament_style_${t.id}`);
-          if (styleRaw) {
-            const style = JSON.parse(styleRaw);
-            setTournamentStyle(style);
-            if (style.accent_color) {
-              // Set as CSS custom property (hex) for use in accent-override rules
-              document.documentElement.style.setProperty("--t-accent", style.accent_color);
-              document.documentElement.classList.add("with-tournament-accent");
-            }
-          } else {
-            setTournamentStyle(null);
-            document.documentElement.style.removeProperty("--t-accent");
-            document.documentElement.classList.remove("with-tournament-accent");
-          }
-        } catch {
-          setTournamentStyle(null);
-        }
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
@@ -165,13 +171,17 @@ export default function Index() {
 
   return (
     <div>
-      {/* Hero */}
+      {/* Hero ──────────────────────────────────────────────────
+           The background image is taken from the active tournament's
+           bannerImage field (a base64 data URL stored in the DB).
+           Falls back to /background.png if no custom image is set.
+           ────────────────────────────────────────────────── */}
       <section
         className="relative overflow-hidden bg-primary bg-cover bg-center bg-no-repeat"
         style={{
           backgroundImage: (() => {
-            const img = tournamentStyle?.banner_image_url?.trim()
-              ? tournamentStyle.banner_image_url
+            const img = tournament.bannerImage?.trim()
+              ? tournament.bannerImage
               : "/background.png";
             return `linear-gradient(90deg, rgba(18,8,14,0.62) 0%, rgba(18,8,14,0.45) 45%, rgba(18,8,14,0.42) 100%), url('${img}')`;
           })(),

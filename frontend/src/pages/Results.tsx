@@ -14,8 +14,7 @@ export default function Results() {
 
       // ✅ Transform backend → frontend
       const formattedMatches = data.map((m: any) => {
-        const hasFinalScore =
-          typeof m.player1_score === "number" && typeof m.player2_score === "number";
+        const hasScore = m.player1_score != null || m.player2_score != null;
 
         return {
           id: m.id,
@@ -32,13 +31,13 @@ export default function Results() {
             name: m.player2_name,
           },
           winner: m.winner_id,
-          score: hasFinalScore
-            ? {
-                sets: [[m.player1_score, m.player2_score]],
-                currentGame: [0, 0],
-                servingPlayer: null,
-              }
-            : m.score || null,
+          // Construct the nested score object expected by UI components
+          score: hasScore ? {
+            sets: [[Number(m.player1_score || 0), Number(m.player2_score || 0)]],
+            currentGame: [Number(m.player1_games || 0), Number(m.player2_games || 0)],
+            currentPoints: [String(m.player1_points || "0"), String(m.player2_points || "0")],
+            servingPlayer: null, 
+          } : null,
         };
       });
 

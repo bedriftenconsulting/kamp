@@ -15,14 +15,13 @@ export default function LiveScores() {
 
       // ✅ Transform backend → frontend shape
       const formattedMatches = data.map((m: any) => {
-        const hasFinalScore =
-          typeof m.player1_score === "number" && typeof m.player2_score === "number";
+        const hasScore = m.player1_score != null || m.player2_score != null;
 
         return {
           id: m.id,
           status: m.status,
           round: m.round,
-          court: "Court 1", // temp (until backend provides it)
+          court: m.court_name || "Court 1",
           scheduledTime: m.scheduled_time,
           player1: {
             id: m.player1_id,
@@ -33,13 +32,13 @@ export default function LiveScores() {
             name: m.player2_name,
           },
           winner: m.winner_id,
-          score: hasFinalScore
-            ? {
-                sets: [[m.player1_score, m.player2_score]],
-                currentGame: [0, 0],
-                servingPlayer: null,
-              }
-            : m.score || null,
+          // Construct the nested score object expected by UI components
+          score: hasScore ? {
+            sets: [[Number(m.player1_score || 0), Number(m.player2_score || 0)]],
+            currentGame: [Number(m.player1_games || 0), Number(m.player2_games || 0)],
+            currentPoints: [String(m.player1_points || "0"), String(m.player2_points || "0")],
+            servingPlayer: null, // would need live state for this
+          } : null,
         };
       });
 

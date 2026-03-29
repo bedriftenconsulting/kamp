@@ -73,6 +73,10 @@ type Match = {
   court: string;
 };
 
+// Tournament mirrors the Go model returned by GET /tournaments.
+// banner_image and accent_color were added in migration 000010 so that each
+// tournament can store its own homepage background image (base64 data URL)
+// and highlight colour (hex string like "#e91e8c") in the database.
 type Tournament = {
   id: string;
   name: string;
@@ -81,7 +85,10 @@ type Tournament = {
   end_date?: string | null;
   status: string;
   surface?: string | null;
+  banner_image?: string | null; // base64 data URL stored as TEXT in DB
+  accent_color?: string | null; // hex colour stored as TEXT in DB
 };
+
 
 type PlayerForm = {
   id: string;
@@ -733,6 +740,13 @@ export default function AdminDashboard() {
     setIsTournamentDialogOpen(true);
   };
 
+  /**
+   * handleOpenEditTournament
+   * ─────────────────────────
+   * Opens the tournament dialog pre-filled with the existing row.
+   * banner_image and accent_color come directly from the database
+   * (via the API response) — no localStorage involved.
+   */
   const handleOpenEditTournament = (t: Tournament) => {
     setIsEditingTournament(true);
     setTournamentForm({
@@ -743,26 +757,29 @@ export default function AdminDashboard() {
       end_date: t.end_date ? String(t.end_date).slice(0, 10) : "",
       status: t.status || "scheduled",
       surface: t.surface || "",
-      banner_image_url: (() => {
-        try {
-          const s = localStorage.getItem(`tournament_style_${t.id}`);
-          return s ? JSON.parse(s).banner_image_url || "" : "";
-        } catch {
-          return "";
-        }
-      })(),
-      accent_color: (() => {
-        try {
-          const s = localStorage.getItem(`tournament_style_${t.id}`);
-          return s ? JSON.parse(s).accent_color || "#e91e8c" : "#e91e8c";
-        } catch {
-          return "#e91e8c";
-        }
-      })(),
+      // Read appearance fields directly from the DB-backed Tournament object
+      banner_image_url: t.banner_image || "",
+      accent_color: t.accent_color || "#e91e8c",
     });
     setIsTournamentDialogOpen(true);
   };
 
+  /**
+   * handleSaveTournament
+   * ─────────────────────
+   * Sends the full tournament payload (including appearance fields) to the
+   * API as a single JSON object.
+   *
+   * How the appearance fields are stored:
+   *   - banner_image : the base64 data URL string produced by FileReader in
+   *                    the form's file <input>. It is sent as-is and stored
+   *                    as TEXT in PostgreSQL.
+   *   - accent_color : the hex colour chosen with the colour picker, stored
+   *                    as a TEXT column. The homepage reads it from the API
+   *                    and injects it as --t-accent on <html>.
+   *
+   * No localStorage is used — all data lives in the database.
+   */
   const handleSaveTournament = async () => {
     if (!tournamentForm.name) {
       alert("Tournament name is required.");
@@ -771,6 +788,7 @@ export default function AdminDashboard() {
 
     setIsSavingTournament(true);
     try {
+      // Build the request body — mirror every field in model.Tournament
       const payload = {
         name: tournamentForm.name,
         location: tournamentForm.location,
@@ -782,13 +800,9 @@ export default function AdminDashboard() {
           : undefined,
         status: tournamentForm.status || "scheduled",
         surface: tournamentForm.surface || undefined,
-      };
-
-      // Persist visual style to localStorage (per-tournament, no backend change needed)
-      const styleKey = `tournament_style_${tournamentForm.id || "pending"}`;
-      const styleData = {
-        banner_image_url: tournamentForm.banner_image_url.trim(),
-        accent_color: tournamentForm.accent_color,
+        // Appearance fields (stored in DB; migration 000010)
+        banner_image: tournamentForm.banner_image_url || null,
+        accent_color: tournamentForm.accent_color || null,
       };
 
       const url = isEditingTournament
@@ -809,23 +823,8 @@ export default function AdminDashboard() {
 
       setIsTournamentDialogOpen(false);
       setTournamentForm(emptyTournamentForm);
+      // Refresh the tournament list so the table / homepage reflects the new values
       await fetchData();
-      // After fetchData the tournament will have its real ID — update style key
-      const savedTournaments = await fetch(`${API_V1_URL}/tournaments`)
-        .then((r) => r.json())
-        .catch(() => []);
-      const newest = Array.isArray(savedTournaments)
-        ? savedTournaments[0]
-        : null;
-      const realID = isEditingTournament
-        ? tournamentForm.id
-        : newest?.id || tournamentForm.id;
-      if (realID) {
-        localStorage.setItem(
-          `tournament_style_${realID}`,
-          JSON.stringify(styleData),
-        );
-      }
     } catch (error: any) {
       alert(error?.message || "Failed to save tournament");
     } finally {
@@ -2208,7 +2207,7 @@ export default function AdminDashboard() {
               </select>
             </div>
 
-            {/* ── Visual Customisation (stored in localStorage per tournament) ── */}
+            {/* ── Visual Customisation — stored in DB columns banner_image and accent_color ── */}
             <div className="space-y-2 md:col-span-2 border-t pt-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
                 Homepage Appearance
