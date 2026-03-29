@@ -11,6 +11,7 @@ export default function Index() {
   const [groups, setGroups] = useState<any[]>([]);
   const [groupMembersById, setGroupMembersById] = useState<Record<string, string[]>>({});
   const [tournament, setTournament] = useState<any | null>(null);
+  const [tournamentStyle, setTournamentStyle] = useState<{ banner_image_url: string; accent_color: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -106,6 +107,26 @@ export default function Index() {
         setTournament(formattedTournament);
         setMatches(formattedMatches);
         setGroups(formattedGroups);
+
+        // Load per-tournament visual style from localStorage
+        try {
+          const styleRaw = localStorage.getItem(`tournament_style_${t.id}`);
+          if (styleRaw) {
+            const style = JSON.parse(styleRaw);
+            setTournamentStyle(style);
+            if (style.accent_color) {
+              // Set as CSS custom property (hex) for use in accent-override rules
+              document.documentElement.style.setProperty("--t-accent", style.accent_color);
+              document.documentElement.classList.add("with-tournament-accent");
+            }
+          } else {
+            setTournamentStyle(null);
+            document.documentElement.style.removeProperty("--t-accent");
+            document.documentElement.classList.remove("with-tournament-accent");
+          }
+        } catch {
+          setTournamentStyle(null);
+        }
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
@@ -148,8 +169,12 @@ export default function Index() {
       <section
         className="relative overflow-hidden bg-primary bg-cover bg-center bg-no-repeat"
         style={{
-          backgroundImage:
-            "linear-gradient(90deg, rgba(18,8,14,0.62) 0%, rgba(18,8,14,0.45) 45%, rgba(18,8,14,0.42) 100%), url('/background.png')",
+          backgroundImage: (() => {
+            const img = tournamentStyle?.banner_image_url?.trim()
+              ? tournamentStyle.banner_image_url
+              : "/background.png";
+            return `linear-gradient(90deg, rgba(18,8,14,0.62) 0%, rgba(18,8,14,0.45) 45%, rgba(18,8,14,0.42) 100%), url('${img}')`;
+          })(),
         }}
       >
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_hsl(330_86%_90%_/_0.24),_transparent_60%)]" />

@@ -12,6 +12,8 @@ import {
   Pencil,
   Trash2,
   CheckCircle2,
+  Menu,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -114,6 +116,8 @@ type TournamentForm = {
   end_date: string;
   status: string;
   surface: string;
+  banner_image_url: string;
+  accent_color: string;
 };
 
 type Group = {
@@ -214,6 +218,8 @@ const emptyTournamentForm: TournamentForm = {
   end_date: "",
   status: "scheduled",
   surface: "",
+  banner_image_url: "",
+  accent_color: "#e91e8c",
 };
 
 const emptyGroupForm: GroupForm = {
@@ -254,7 +260,10 @@ const parseResponseBody = async (res: Response) => {
   }
 };
 
-const fetchJSONOrFallback = async <T,>(url: string, fallback: T): Promise<T> => {
+const fetchJSONOrFallback = async <T,>(
+  url: string,
+  fallback: T,
+): Promise<T> => {
   try {
     const res = await fetch(url);
     const body = await parseResponseBody(res);
@@ -273,6 +282,7 @@ const fetchJSONOrFallback = async <T,>(url: string, fallback: T): Promise<T> => 
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [matches, setMatches] = useState<Match[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -291,23 +301,31 @@ export default function AdminDashboard() {
   const [deletingMatchId, setDeletingMatchId] = useState<string | null>(null);
 
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
-  const [completeForm, setCompleteForm] = useState<CompleteForm>(emptyCompleteForm);
+  const [completeForm, setCompleteForm] =
+    useState<CompleteForm>(emptyCompleteForm);
   const [isCompletingMatch, setIsCompletingMatch] = useState(false);
 
   const [isTournamentDialogOpen, setIsTournamentDialogOpen] = useState(false);
   const [isEditingTournament, setIsEditingTournament] = useState(false);
-  const [tournamentForm, setTournamentForm] = useState<TournamentForm>(emptyTournamentForm);
+  const [tournamentForm, setTournamentForm] =
+    useState<TournamentForm>(emptyTournamentForm);
   const [isSavingTournament, setIsSavingTournament] = useState(false);
-  const [deletingTournamentId, setDeletingTournamentId] = useState<string | null>(null);
+  const [deletingTournamentId, setDeletingTournamentId] = useState<
+    string | null
+  >(null);
 
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
   const [groupForm, setGroupForm] = useState<GroupForm>(emptyGroupForm);
   const [isSavingGroup, setIsSavingGroup] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [groupPlayerSelections, setGroupPlayerSelections] = useState<string[]>([]);
+  const [groupPlayerSelections, setGroupPlayerSelections] = useState<string[]>(
+    [],
+  );
   const [groupMatches, setGroupMatches] = useState<GroupMatch[]>([]);
   const [groupStandings, setGroupStandings] = useState<GroupStanding[]>([]);
-  const [groupScoreInputs, setGroupScoreInputs] = useState<Record<string, { p1: string; p2: string }>>({});
+  const [groupScoreInputs, setGroupScoreInputs] = useState<
+    Record<string, { p1: string; p2: string }>
+  >({});
   const [isSavingGroupPlayers, setIsSavingGroupPlayers] = useState(false);
   const [isLockingGroup, setIsLockingGroup] = useState(false);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
@@ -317,16 +335,21 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     try {
-      const [matchesData, playersData, tournamentData, groupsData] = await Promise.all([
-        fetchJSONOrFallback<any>(`${API_V1_URL}/matches`, []),
-        fetchJSONOrFallback<any>(`${API_V1_URL}/players`, []),
-        fetchJSONOrFallback<any>(`${API_V1_URL}/tournaments`, []),
-        fetchJSONOrFallback<any>(`${API_V1_URL}/groups`, []),
-      ]);
+      const [matchesData, playersData, tournamentData, groupsData] =
+        await Promise.all([
+          fetchJSONOrFallback<any>(`${API_V1_URL}/matches`, []),
+          fetchJSONOrFallback<any>(`${API_V1_URL}/players`, []),
+          fetchJSONOrFallback<any>(`${API_V1_URL}/tournaments`, []),
+          fetchJSONOrFallback<any>(`${API_V1_URL}/groups`, []),
+        ]);
       console.log("DATA:", tournamentData);
 
       const toList = (payload: any) =>
-        Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
+        Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.data)
+            ? payload.data
+            : [];
 
       const matchesList = toList(matchesData);
       const playersList = toList(playersData);
@@ -368,7 +391,11 @@ export default function AdminDashboard() {
         nationality: p.nationality || p.country || "",
         tournament_name: p.tournament_name || p.tournamentName || "",
         gender: p.gender || p.Gender || "",
-        age: Number(p.age || p.Age || calculateAgeFromDOB(p.date_of_birth || p.dateOfBirth)),
+        age: Number(
+          p.age ||
+            p.Age ||
+            calculateAgeFromDOB(p.date_of_birth || p.dateOfBirth),
+        ),
         tennis_level: p.tennis_level || p.tennisLevel || "",
         ranking: Number(p.ranking || 0),
         bio: p.bio || "",
@@ -377,15 +404,17 @@ export default function AdminDashboard() {
         country: p.nationality || p.country || "",
       }));
 
-      const formattedTournaments: Tournament[] = tournamentList.map((t: any) => ({
-        id: t.id,
-        name: t.name,
-        location: t.location,
-        start_date: t.start_date,
-        end_date: t.end_date,
-        status: t.status,
-        surface: t.surface,
-      }));
+      const formattedTournaments: Tournament[] = tournamentList.map(
+        (t: any) => ({
+          id: t.id,
+          name: t.name,
+          location: t.location,
+          start_date: t.start_date,
+          end_date: t.end_date,
+          status: t.status,
+          surface: t.surface,
+        }),
+      );
 
       const formattedGroups: Group[] = groupsList.map((g: any) => ({
         id: g.id,
@@ -424,7 +453,8 @@ export default function AdminDashboard() {
       return;
     }
 
-    const hasSelected = selectedGroupId && groups.some((g) => g.id === selectedGroupId);
+    const hasSelected =
+      selectedGroupId && groups.some((g) => g.id === selectedGroupId);
     const nextGroupID = hasSelected ? selectedGroupId! : groups[0].id;
 
     if (!hasSelected) {
@@ -440,7 +470,10 @@ export default function AdminDashboard() {
     () => matches.filter((m) => m.status === "completed"),
     [matches],
   );
-  const totalMatchPages = Math.max(1, Math.ceil(finalizedMatches.length / matchesPerPage));
+  const totalMatchPages = Math.max(
+    1,
+    Math.ceil(finalizedMatches.length / matchesPerPage),
+  );
   const paginatedMatches = useMemo(() => {
     const start = (matchPage - 1) * matchesPerPage;
     return finalizedMatches.slice(start, start + matchesPerPage);
@@ -458,7 +491,9 @@ export default function AdminDashboard() {
       id: player.id,
       first_name: player.first_name,
       last_name: player.last_name,
-      date_of_birth: player.date_of_birth ? String(player.date_of_birth).slice(0, 10) : "",
+      date_of_birth: player.date_of_birth
+        ? String(player.date_of_birth).slice(0, 10)
+        : "",
       nationality: player.nationality,
       gender: player.gender || "",
       age: String(player.age ?? ""),
@@ -471,10 +506,7 @@ export default function AdminDashboard() {
   };
 
   const handleSavePlayer = async () => {
-    if (
-      !playerForm.first_name ||
-      !playerForm.last_name
-    ) {
+    if (!playerForm.first_name || !playerForm.last_name) {
       alert("Please fill all required fields.");
       return;
     }
@@ -486,7 +518,9 @@ export default function AdminDashboard() {
         id: playerForm.id || undefined,
         first_name: playerForm.first_name,
         last_name: playerForm.last_name,
-        date_of_birth: playerForm.date_of_birth ? `${playerForm.date_of_birth}T00:00:00Z` : undefined,
+        date_of_birth: playerForm.date_of_birth
+          ? `${playerForm.date_of_birth}T00:00:00Z`
+          : undefined,
         nationality: playerForm.nationality,
         gender: playerForm.gender,
         age: Number(playerForm.age || 0),
@@ -561,7 +595,9 @@ export default function AdminDashboard() {
       round: match.round || "",
       court_id: match.court_id || "",
       status: match.status || "scheduled",
-      scheduled_time: match.scheduled_time ? String(match.scheduled_time).slice(0, 16) : "",
+      scheduled_time: match.scheduled_time
+        ? String(match.scheduled_time).slice(0, 16)
+        : "",
     });
     setIsMatchDialogOpen(true);
   };
@@ -667,11 +703,14 @@ export default function AdminDashboard() {
         player2_games: Number(completeForm.player2_games || 0),
       };
 
-      const res = await fetch(`${API_V1_URL}/matches/${completeForm.match_id}/complete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const res = await fetch(
+        `${API_V1_URL}/matches/${completeForm.match_id}/complete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -704,6 +743,22 @@ export default function AdminDashboard() {
       end_date: t.end_date ? String(t.end_date).slice(0, 10) : "",
       status: t.status || "scheduled",
       surface: t.surface || "",
+      banner_image_url: (() => {
+        try {
+          const s = localStorage.getItem(`tournament_style_${t.id}`);
+          return s ? JSON.parse(s).banner_image_url || "" : "";
+        } catch {
+          return "";
+        }
+      })(),
+      accent_color: (() => {
+        try {
+          const s = localStorage.getItem(`tournament_style_${t.id}`);
+          return s ? JSON.parse(s).accent_color || "#e91e8c" : "#e91e8c";
+        } catch {
+          return "#e91e8c";
+        }
+      })(),
     });
     setIsTournamentDialogOpen(true);
   };
@@ -719,10 +774,21 @@ export default function AdminDashboard() {
       const payload = {
         name: tournamentForm.name,
         location: tournamentForm.location,
-        start_date: tournamentForm.start_date ? `${tournamentForm.start_date}T00:00:00Z` : undefined,
-        end_date: tournamentForm.end_date ? `${tournamentForm.end_date}T00:00:00Z` : undefined,
+        start_date: tournamentForm.start_date
+          ? `${tournamentForm.start_date}T00:00:00Z`
+          : undefined,
+        end_date: tournamentForm.end_date
+          ? `${tournamentForm.end_date}T00:00:00Z`
+          : undefined,
         status: tournamentForm.status || "scheduled",
         surface: tournamentForm.surface || undefined,
+      };
+
+      // Persist visual style to localStorage (per-tournament, no backend change needed)
+      const styleKey = `tournament_style_${tournamentForm.id || "pending"}`;
+      const styleData = {
+        banner_image_url: tournamentForm.banner_image_url.trim(),
+        accent_color: tournamentForm.accent_color,
       };
 
       const url = isEditingTournament
@@ -744,6 +810,22 @@ export default function AdminDashboard() {
       setIsTournamentDialogOpen(false);
       setTournamentForm(emptyTournamentForm);
       await fetchData();
+      // After fetchData the tournament will have its real ID — update style key
+      const savedTournaments = await fetch(`${API_V1_URL}/tournaments`)
+        .then((r) => r.json())
+        .catch(() => []);
+      const newest = Array.isArray(savedTournaments)
+        ? savedTournaments[0]
+        : null;
+      const realID = isEditingTournament
+        ? tournamentForm.id
+        : newest?.id || tournamentForm.id;
+      if (realID) {
+        localStorage.setItem(
+          `tournament_style_${realID}`,
+          JSON.stringify(styleData),
+        );
+      }
     } catch (error: any) {
       alert(error?.message || "Failed to save tournament");
     } finally {
@@ -756,7 +838,9 @@ export default function AdminDashboard() {
 
     setDeletingTournamentId(id);
     try {
-      const res = await fetch(`${API_V1_URL}/tournaments/${id}`, { method: "DELETE" });
+      const res = await fetch(`${API_V1_URL}/tournaments/${id}`, {
+        method: "DELETE",
+      });
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -775,15 +859,21 @@ export default function AdminDashboard() {
 
   const loadGroupDetails = async (groupID: string) => {
     const [playersData, matchesData, standingsData] = await Promise.all([
-      fetchJSONOrFallback<any>(`${API_V1_URL}/groups/${groupID}/players`, { player_ids: [] }),
+      fetchJSONOrFallback<any>(`${API_V1_URL}/groups/${groupID}/players`, {
+        player_ids: [],
+      }),
       fetchJSONOrFallback<any>(`${API_V1_URL}/groups/${groupID}/matches`, []),
       fetchJSONOrFallback<any>(`${API_V1_URL}/groups/${groupID}/standings`, []),
     ]);
 
-    const playerIDs = Array.isArray(playersData?.player_ids) ? playersData.player_ids : [];
+    const playerIDs = Array.isArray(playersData?.player_ids)
+      ? playersData.player_ids
+      : [];
     setGroupPlayerSelections(playerIDs);
 
-    const formattedMatches: GroupMatch[] = (Array.isArray(matchesData) ? matchesData : []).map((m: any) => ({
+    const formattedMatches: GroupMatch[] = (
+      Array.isArray(matchesData) ? matchesData : []
+    ).map((m: any) => ({
       id: m.id,
       group_id: m.group_id,
       player1_id: m.player1_id,
@@ -814,7 +904,11 @@ export default function AdminDashboard() {
   };
 
   const handleSaveGroup = async () => {
-    if (!groupForm.designation || !groupForm.max_players || !groupForm.qualifiers_count) {
+    if (
+      !groupForm.designation ||
+      !groupForm.max_players ||
+      !groupForm.qualifiers_count
+    ) {
       alert("Please fill all required group fields.");
       return;
     }
@@ -863,11 +957,14 @@ export default function AdminDashboard() {
     if (!selectedGroupId) return;
     setIsSavingGroupPlayers(true);
     try {
-      const res = await fetch(`${API_V1_URL}/groups/${selectedGroupId}/players`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ player_ids: groupPlayerSelections }),
-      });
+      const res = await fetch(
+        `${API_V1_URL}/groups/${selectedGroupId}/players`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ player_ids: groupPlayerSelections }),
+        },
+      );
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || "Failed to save group players");
@@ -907,14 +1004,17 @@ export default function AdminDashboard() {
     if (!input) return;
 
     try {
-      const res = await fetch(`${API_V1_URL}/groups/${selectedGroupId}/matches/${matchID}/result`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          player1_score: Number(input.p1 || 0),
-          player2_score: Number(input.p2 || 0),
-        }),
-      });
+      const res = await fetch(
+        `${API_V1_URL}/groups/${selectedGroupId}/matches/${matchID}/result`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            player1_score: Number(input.p1 || 0),
+            player2_score: Number(input.p2 || 0),
+          }),
+        },
+      );
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || "Failed to save match result");
@@ -927,11 +1027,18 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteGroup = async (groupID: string) => {
-    if (!confirm("Delete this group? This also removes generated matches linked to it.")) return;
+    if (
+      !confirm(
+        "Delete this group? This also removes generated matches linked to it.",
+      )
+    )
+      return;
 
     setDeletingGroupId(groupID);
     try {
-      const res = await fetch(`${API_V1_URL}/groups/${groupID}`, { method: "DELETE" });
+      const res = await fetch(`${API_V1_URL}/groups/${groupID}`, {
+        method: "DELETE",
+      });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || "Failed to delete group");
@@ -958,18 +1065,41 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-muted/30 flex">
-      <aside className="w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border hidden lg:flex flex-col">
+      {/* ── Mobile Overlay ── */}
+      {isMobileSidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
+
+      {/* ── Sidebar (desktop: always visible, mobile: slide-in drawer) ── */}
+      <aside
+        className={`fixed lg:relative z-50 top-0 left-0 h-100 w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border flex flex-col transition-transform duration-300 ${
+          isMobileSidebarOpen
+            ? "translate-x-0"
+            : "-translate-x-full lg:translate-x-0"
+        }`}
+      >
         <div className="p-4 border-b border-sidebar-border">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-sm bg-sidebar-primary flex items-center justify-center font-display font-black text-sidebar-primary-foreground text-sm">
-              GS
-            </div>
-            <div>
-              <div className="font-bold text-sm">Admin Panel</div>
-              <div className="text-[10px] text-sidebar-foreground/50">
-                Tournament Management
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-sm bg-sidebar-primary flex items-center justify-center font-display font-black text-sidebar-primary-foreground text-sm">
+                GS
+              </div>
+              <div>
+                <div className="font-bold text-sm">Admin Panel</div>
+                <div className="text-[10px] text-sidebar-foreground/50">
+                  Tournament Management
+                </div>
               </div>
             </div>
+            <button
+              className="lg:hidden text-sidebar-foreground/70 hover:text-sidebar-foreground"
+              onClick={() => setIsMobileSidebarOpen(false)}
+            >
+              <X size={18} />
+            </button>
           </div>
         </div>
 
@@ -977,7 +1107,10 @@ export default function AdminDashboard() {
           {tabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => {
+                setActiveTab(tab.id);
+                setIsMobileSidebarOpen(false);
+              }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-sm text-sm font-medium ${
                 activeTab === tab.id
                   ? "bg-sidebar-accent text-sidebar-primary"
@@ -991,7 +1124,17 @@ export default function AdminDashboard() {
         </nav>
       </aside>
 
-      <main className="flex-1 p-6">
+      <main className="flex-1 p-6 min-w-0">
+        {/* ── Mobile top bar ── */}
+        <div className="lg:hidden flex items-center gap-3 mb-6 -mt-2">
+          <button
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="p-2 rounded-md bg-card border border-border text-foreground"
+          >
+            <Menu size={20} />
+          </button>
+          <span className="font-bold text-sm">Admin Panel</span>
+        </div>
         {activeTab === "overview" && (
           <div>
             <h1 className="text-2xl font-black mb-6">Dashboard</h1>
@@ -1047,8 +1190,12 @@ export default function AdminDashboard() {
                 <tbody>
                   {paginatedMatches.map((m, idx) => (
                     <tr key={m.id} className="border-t">
-                      <td className="px-4 py-3">{(matchPage - 1) * matchesPerPage + idx + 1}</td>
-                      <td className="px-4 py-3">{m.player1.name} vs {m.player2.name}</td>
+                      <td className="px-4 py-3">
+                        {(matchPage - 1) * matchesPerPage + idx + 1}
+                      </td>
+                      <td className="px-4 py-3">
+                        {m.player1.name} vs {m.player2.name}
+                      </td>
                       <td className="px-4 py-3">{m.round}</td>
                       <td className="px-4 py-3">
                         {m.player1_score != null && m.player2_score != null
@@ -1077,16 +1224,30 @@ export default function AdminDashboard() {
 
             <div className="mt-4 flex items-center justify-between">
               <div className="text-sm text-muted-foreground">
-                Showing {finalizedMatches.length === 0 ? 0 : (matchPage - 1) * matchesPerPage + 1} - {Math.min(matchPage * matchesPerPage, finalizedMatches.length)} of {finalizedMatches.length}
+                Showing{" "}
+                {finalizedMatches.length === 0
+                  ? 0
+                  : (matchPage - 1) * matchesPerPage + 1}{" "}
+                -{" "}
+                {Math.min(matchPage * matchesPerPage, finalizedMatches.length)}{" "}
+                of {finalizedMatches.length}
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={() => setMatchPage((p) => Math.max(1, p - 1))} disabled={matchPage === 1}>
-                  Previous
-                </Button>
-                <div className="text-sm">Page {matchPage} / {totalMatchPages}</div>
                 <Button
                   variant="outline"
-                  onClick={() => setMatchPage((p) => Math.min(totalMatchPages, p + 1))}
+                  onClick={() => setMatchPage((p) => Math.max(1, p - 1))}
+                  disabled={matchPage === 1}
+                >
+                  Previous
+                </Button>
+                <div className="text-sm">
+                  Page {matchPage} / {totalMatchPages}
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    setMatchPage((p) => Math.min(totalMatchPages, p + 1))
+                  }
                   disabled={matchPage === totalMatchPages}
                 >
                   Next
@@ -1130,7 +1291,11 @@ export default function AdminDashboard() {
                       <td className="px-4 py-3">{p.tournament_name || "-"}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-2">
-                          <Button variant="outline" size="icon" onClick={() => handleOpenEditPlayer(p)}>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => handleOpenEditPlayer(p)}
+                          >
                             <Pencil size={14} />
                           </Button>
                           <Button
@@ -1177,15 +1342,22 @@ export default function AdminDashboard() {
                 <tbody>
                   {groups.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                      <td
+                        colSpan={7}
+                        className="px-4 py-8 text-center text-muted-foreground"
+                      >
                         No groups yet. Create one to start round robin setup.
                       </td>
                     </tr>
                   ) : (
                     groups.map((g) => (
                       <tr key={g.id} className="border-t">
-                        <td className="px-4 py-3 font-semibold">{g.designation}</td>
-                        <td className="px-4 py-3">{normalizeGender(g.gender) || "-"}</td>
+                        <td className="px-4 py-3 font-semibold">
+                          {g.designation}
+                        </td>
+                        <td className="px-4 py-3">
+                          {normalizeGender(g.gender) || "-"}
+                        </td>
                         <td className="px-4 py-3">{g.tennis_level}</td>
                         <td className="px-4 py-3">
                           {g.players_count} / {g.max_players}
@@ -1201,13 +1373,16 @@ export default function AdminDashboard() {
                                   : "text-sky-600 font-medium"
                             }
                           >
-                            {g.status.charAt(0).toUpperCase() + g.status.slice(1)}
+                            {g.status.charAt(0).toUpperCase() +
+                              g.status.slice(1)}
                           </span>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-2">
                             <Button
-                              variant={selectedGroupId === g.id ? "default" : "outline"}
+                              variant={
+                                selectedGroupId === g.id ? "default" : "outline"
+                              }
                               onClick={() => handleSelectGroup(g.id)}
                             >
                               {selectedGroupId === g.id ? "Selected" : "Manage"}
@@ -1217,7 +1392,9 @@ export default function AdminDashboard() {
                               onClick={() => handleDeleteGroup(g.id)}
                               disabled={deletingGroupId === g.id}
                             >
-                              {deletingGroupId === g.id ? "Removing..." : "Remove"}
+                              {deletingGroupId === g.id
+                                ? "Removing..."
+                                : "Remove"}
                             </Button>
                           </div>
                         </td>
@@ -1233,10 +1410,12 @@ export default function AdminDashboard() {
                 <div className="bg-card border rounded-md p-4 space-y-4">
                   <div className="flex items-center justify-between">
                     <h2 className="text-lg font-bold">
-                      {(normalizeGender(selectedGroup.gender) || "Unspecified")} {selectedGroup.tennis_level} {selectedGroup.designation}
+                      {normalizeGender(selectedGroup.gender) || "Unspecified"}{" "}
+                      {selectedGroup.tennis_level} {selectedGroup.designation}
                     </h2>
                     <div className="text-xs text-muted-foreground">
-                      {selectedGroup.players_count}/{selectedGroup.max_players} players
+                      {selectedGroup.players_count}/{selectedGroup.max_players}{" "}
+                      players
                     </div>
                   </div>
 
@@ -1245,7 +1424,9 @@ export default function AdminDashboard() {
                     <div className="max-h-56 overflow-auto rounded-md border p-3 space-y-2">
                       {players
                         .filter((p) => {
-                          const levelMatches = (p.tennis_level || "").toLowerCase() === selectedGroup.tennis_level.toLowerCase();
+                          const levelMatches =
+                            (p.tennis_level || "").toLowerCase() ===
+                            selectedGroup.tennis_level.toLowerCase();
                           const pg = normalizeGender(p.gender);
                           const sg = normalizeGender(selectedGroup.gender);
                           const genderMatches = sg !== "" && pg === sg;
@@ -1254,19 +1435,31 @@ export default function AdminDashboard() {
                         .map((p) => {
                           const checked = groupPlayerSelections.includes(p.id);
                           const disableUnchecked =
-                            !checked && groupPlayerSelections.length >= selectedGroup.max_players;
+                            !checked &&
+                            groupPlayerSelections.length >=
+                              selectedGroup.max_players;
 
                           return (
-                            <label key={p.id} className="flex items-center gap-2 text-sm">
+                            <label
+                              key={p.id}
+                              className="flex items-center gap-2 text-sm"
+                            >
                               <input
                                 type="checkbox"
                                 checked={checked}
-                                disabled={selectedGroup.is_locked || disableUnchecked}
+                                disabled={
+                                  selectedGroup.is_locked || disableUnchecked
+                                }
                                 onChange={(e) => {
                                   if (e.target.checked) {
-                                    setGroupPlayerSelections((prev) => [...prev, p.id]);
+                                    setGroupPlayerSelections((prev) => [
+                                      ...prev,
+                                      p.id,
+                                    ]);
                                   } else {
-                                    setGroupPlayerSelections((prev) => prev.filter((id) => id !== p.id));
+                                    setGroupPlayerSelections((prev) =>
+                                      prev.filter((id) => id !== p.id),
+                                    );
                                   }
                                 }}
                               />
@@ -1276,8 +1469,12 @@ export default function AdminDashboard() {
                         })}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      Only players with level <strong>{selectedGroup.tennis_level}</strong> and gender{" "}
-                      <strong>{normalizeGender(selectedGroup.gender) || "Unspecified"}</strong> are listed.
+                      Only players with level{" "}
+                      <strong>{selectedGroup.tennis_level}</strong> and gender{" "}
+                      <strong>
+                        {normalizeGender(selectedGroup.gender) || "Unspecified"}
+                      </strong>{" "}
+                      are listed.
                     </div>
                   </div>
 
@@ -1293,7 +1490,9 @@ export default function AdminDashboard() {
                       onClick={handleLockGroup}
                       disabled={selectedGroup.is_locked || isLockingGroup}
                     >
-                      {isLockingGroup ? "Locking..." : "Finalize Group & Generate Round Robin"}
+                      {isLockingGroup
+                        ? "Locking..."
+                        : "Finalize Group & Generate Round Robin"}
                     </Button>
                   </div>
                 </div>
@@ -1316,7 +1515,10 @@ export default function AdminDashboard() {
                       <tbody>
                         {groupStandings.length === 0 ? (
                           <tr>
-                            <td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">
+                            <td
+                              colSpan={7}
+                              className="px-3 py-6 text-center text-muted-foreground"
+                            >
                               No standings yet.
                             </td>
                           </tr>
@@ -1329,7 +1531,9 @@ export default function AdminDashboard() {
                               <td className="px-3 py-2">{s.losses}</td>
                               <td className="px-3 py-2">{s.points}</td>
                               <td className="px-3 py-2">{s.score_diff}</td>
-                              <td className="px-3 py-2">{s.is_qualified ? "Yes" : "-"}</td>
+                              <td className="px-3 py-2">
+                                {s.is_qualified ? "Yes" : "-"}
+                              </td>
                             </tr>
                           ))
                         )}
@@ -1346,7 +1550,8 @@ export default function AdminDashboard() {
                 <div className="space-y-3">
                   {groupMatches.length === 0 ? (
                     <div className="text-sm text-muted-foreground">
-                      No fixtures yet. Lock the group after filling players to generate matches.
+                      No fixtures yet. Lock the group after filling players to
+                      generate matches.
                     </div>
                   ) : (
                     groupMatches.map((m, i) => (
@@ -1357,7 +1562,9 @@ export default function AdminDashboard() {
                         <div className="text-sm">
                           <span className="font-semibold mr-2">#{i + 1}</span>
                           {m.player1_name} vs {m.player2_name}
-                          <span className="ml-2 text-muted-foreground">({m.status})</span>
+                          <span className="ml-2 text-muted-foreground">
+                            ({m.status})
+                          </span>
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -1368,10 +1575,16 @@ export default function AdminDashboard() {
                             onChange={(e) =>
                               setGroupScoreInputs((prev) => ({
                                 ...prev,
-                                [m.id]: { p1: e.target.value, p2: prev[m.id]?.p2 ?? "0" },
+                                [m.id]: {
+                                  p1: e.target.value,
+                                  p2: prev[m.id]?.p2 ?? "0",
+                                },
                               }))
                             }
-                            disabled={!selectedGroup.is_locked || m.status === "completed"}
+                            disabled={
+                              !selectedGroup.is_locked ||
+                              m.status === "completed"
+                            }
                           />
                           <span>-</span>
                           <Input
@@ -1381,15 +1594,24 @@ export default function AdminDashboard() {
                             onChange={(e) =>
                               setGroupScoreInputs((prev) => ({
                                 ...prev,
-                                [m.id]: { p1: prev[m.id]?.p1 ?? "0", p2: e.target.value },
+                                [m.id]: {
+                                  p1: prev[m.id]?.p1 ?? "0",
+                                  p2: e.target.value,
+                                },
                               }))
                             }
-                            disabled={!selectedGroup.is_locked || m.status === "completed"}
+                            disabled={
+                              !selectedGroup.is_locked ||
+                              m.status === "completed"
+                            }
                           />
                           <Button
                             variant="outline"
                             onClick={() => handleSaveGroupMatchResult(m.id)}
-                            disabled={!selectedGroup.is_locked || m.status === "completed"}
+                            disabled={
+                              !selectedGroup.is_locked ||
+                              m.status === "completed"
+                            }
                           >
                             {m.status === "completed" ? "Saved" : "Save Result"}
                           </Button>
@@ -1432,11 +1654,21 @@ export default function AdminDashboard() {
                         <td className="px-4 py-3">{t.id}</td>
                         <td className="px-4 py-3">{t.name}</td>
                         <td className="px-4 py-3">{t.location || "-"}</td>
-                        <td className="px-4 py-3">{t.start_date ? String(t.start_date).slice(0, 10) : "-"}</td>
-                        <td className="px-4 py-3">{t.end_date ? String(t.end_date).slice(0, 10) : "-"}</td>
+                        <td className="px-4 py-3">
+                          {t.start_date
+                            ? String(t.start_date).slice(0, 10)
+                            : "-"}
+                        </td>
+                        <td className="px-4 py-3">
+                          {t.end_date ? String(t.end_date).slice(0, 10) : "-"}
+                        </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-2">
-                            <Button variant="outline" size="icon" onClick={() => handleOpenEditTournament(t)}>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => handleOpenEditTournament(t)}
+                            >
                               <Pencil size={14} />
                             </Button>
                             <Button
@@ -1466,7 +1698,9 @@ export default function AdminDashboard() {
       <Dialog open={isPlayerDialogOpen} onOpenChange={setIsPlayerDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{isEditingPlayer ? "Edit Player" : "Add Player"}</DialogTitle>
+            <DialogTitle>
+              {isEditingPlayer ? "Edit Player" : "Add Player"}
+            </DialogTitle>
             <DialogDescription>
               Fill player details and save changes.
             </DialogDescription>
@@ -1479,7 +1713,9 @@ export default function AdminDashboard() {
                 id="player-id"
                 placeholder="UUID (optional for create)"
                 value={playerForm.id}
-                onChange={(e) => setPlayerForm((prev) => ({ ...prev, id: e.target.value }))}
+                onChange={(e) =>
+                  setPlayerForm((prev) => ({ ...prev, id: e.target.value }))
+                }
                 disabled={isEditingPlayer}
               />
             </div>
@@ -1489,7 +1725,12 @@ export default function AdminDashboard() {
               <Input
                 id="player-first-name"
                 value={playerForm.first_name}
-                onChange={(e) => setPlayerForm((prev) => ({ ...prev, first_name: e.target.value }))}
+                onChange={(e) =>
+                  setPlayerForm((prev) => ({
+                    ...prev,
+                    first_name: e.target.value,
+                  }))
+                }
               />
             </div>
 
@@ -1498,7 +1739,12 @@ export default function AdminDashboard() {
               <Input
                 id="player-last-name"
                 value={playerForm.last_name}
-                onChange={(e) => setPlayerForm((prev) => ({ ...prev, last_name: e.target.value }))}
+                onChange={(e) =>
+                  setPlayerForm((prev) => ({
+                    ...prev,
+                    last_name: e.target.value,
+                  }))
+                }
               />
             </div>
 
@@ -1508,7 +1754,12 @@ export default function AdminDashboard() {
                 id="player-dob"
                 type="date"
                 value={playerForm.date_of_birth}
-                onChange={(e) => setPlayerForm((prev) => ({ ...prev, date_of_birth: e.target.value }))}
+                onChange={(e) =>
+                  setPlayerForm((prev) => ({
+                    ...prev,
+                    date_of_birth: e.target.value,
+                  }))
+                }
               />
             </div>
 
@@ -1517,7 +1768,12 @@ export default function AdminDashboard() {
               <Input
                 id="player-nationality"
                 value={playerForm.nationality}
-                onChange={(e) => setPlayerForm((prev) => ({ ...prev, nationality: e.target.value }))}
+                onChange={(e) =>
+                  setPlayerForm((prev) => ({
+                    ...prev,
+                    nationality: e.target.value,
+                  }))
+                }
               />
             </div>
 
@@ -1527,7 +1783,12 @@ export default function AdminDashboard() {
                 id="player-ranking"
                 type="number"
                 value={playerForm.ranking}
-                onChange={(e) => setPlayerForm((prev) => ({ ...prev, ranking: e.target.value }))}
+                onChange={(e) =>
+                  setPlayerForm((prev) => ({
+                    ...prev,
+                    ranking: e.target.value,
+                  }))
+                }
               />
             </div>
 
@@ -1536,7 +1797,9 @@ export default function AdminDashboard() {
               <Input
                 id="player-gender"
                 value={playerForm.gender}
-                onChange={(e) => setPlayerForm((prev) => ({ ...prev, gender: e.target.value }))}
+                onChange={(e) =>
+                  setPlayerForm((prev) => ({ ...prev, gender: e.target.value }))
+                }
               />
             </div>
 
@@ -1546,7 +1809,9 @@ export default function AdminDashboard() {
                 id="player-age"
                 type="number"
                 value={playerForm.age}
-                onChange={(e) => setPlayerForm((prev) => ({ ...prev, age: e.target.value }))}
+                onChange={(e) =>
+                  setPlayerForm((prev) => ({ ...prev, age: e.target.value }))
+                }
               />
             </div>
 
@@ -1555,7 +1820,12 @@ export default function AdminDashboard() {
               <Input
                 id="player-tennis-level"
                 value={playerForm.tennis_level}
-                onChange={(e) => setPlayerForm((prev) => ({ ...prev, tennis_level: e.target.value }))}
+                onChange={(e) =>
+                  setPlayerForm((prev) => ({
+                    ...prev,
+                    tennis_level: e.target.value,
+                  }))
+                }
               />
             </div>
 
@@ -1564,7 +1834,9 @@ export default function AdminDashboard() {
               <Textarea
                 id="player-bio"
                 value={playerForm.bio}
-                onChange={(e) => setPlayerForm((prev) => ({ ...prev, bio: e.target.value }))}
+                onChange={(e) =>
+                  setPlayerForm((prev) => ({ ...prev, bio: e.target.value }))
+                }
               />
             </div>
 
@@ -1573,13 +1845,22 @@ export default function AdminDashboard() {
               <Input
                 id="player-image-url"
                 value={playerForm.profile_image_url}
-                onChange={(e) => setPlayerForm((prev) => ({ ...prev, profile_image_url: e.target.value }))}
+                onChange={(e) =>
+                  setPlayerForm((prev) => ({
+                    ...prev,
+                    profile_image_url: e.target.value,
+                  }))
+                }
               />
             </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setIsPlayerDialogOpen(false)} disabled={isSavingPlayer}>
+            <Button
+              variant="outline"
+              onClick={() => setIsPlayerDialogOpen(false)}
+              disabled={isSavingPlayer}
+            >
               Cancel
             </Button>
             <Button onClick={handleSavePlayer} disabled={isSavingPlayer}>
@@ -1592,7 +1873,9 @@ export default function AdminDashboard() {
       <Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{isEditingMatch ? "Edit Match" : "Add Match"}</DialogTitle>
+            <DialogTitle>
+              {isEditingMatch ? "Edit Match" : "Add Match"}
+            </DialogTitle>
             <DialogDescription>
               Configure matchup details and scheduling.
             </DialogDescription>
@@ -1605,7 +1888,12 @@ export default function AdminDashboard() {
                 id="match-player1"
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={matchForm.player1_id}
-                onChange={(e) => setMatchForm((prev) => ({ ...prev, player1_id: e.target.value }))}
+                onChange={(e) =>
+                  setMatchForm((prev) => ({
+                    ...prev,
+                    player1_id: e.target.value,
+                  }))
+                }
               >
                 <option value="">Select Player 1</option>
                 {players.map((p) => (
@@ -1622,7 +1910,12 @@ export default function AdminDashboard() {
                 id="match-player2"
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={matchForm.player2_id}
-                onChange={(e) => setMatchForm((prev) => ({ ...prev, player2_id: e.target.value }))}
+                onChange={(e) =>
+                  setMatchForm((prev) => ({
+                    ...prev,
+                    player2_id: e.target.value,
+                  }))
+                }
               >
                 <option value="">Select Player 2</option>
                 {players.map((p) => (
@@ -1638,7 +1931,9 @@ export default function AdminDashboard() {
               <Input
                 id="match-round"
                 value={matchForm.round}
-                onChange={(e) => setMatchForm((prev) => ({ ...prev, round: e.target.value }))}
+                onChange={(e) =>
+                  setMatchForm((prev) => ({ ...prev, round: e.target.value }))
+                }
                 placeholder="e.g. Quarterfinal"
               />
             </div>
@@ -1648,7 +1943,12 @@ export default function AdminDashboard() {
               <Input
                 id="match-court"
                 value={matchForm.court_id}
-                onChange={(e) => setMatchForm((prev) => ({ ...prev, court_id: e.target.value }))}
+                onChange={(e) =>
+                  setMatchForm((prev) => ({
+                    ...prev,
+                    court_id: e.target.value,
+                  }))
+                }
                 placeholder="Court ID"
               />
             </div>
@@ -1659,7 +1959,9 @@ export default function AdminDashboard() {
                 id="match-status"
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={matchForm.status}
-                onChange={(e) => setMatchForm((prev) => ({ ...prev, status: e.target.value }))}
+                onChange={(e) =>
+                  setMatchForm((prev) => ({ ...prev, status: e.target.value }))
+                }
               >
                 <option value="scheduled">scheduled</option>
                 <option value="live">live</option>
@@ -1673,13 +1975,22 @@ export default function AdminDashboard() {
                 id="match-time"
                 type="datetime-local"
                 value={matchForm.scheduled_time}
-                onChange={(e) => setMatchForm((prev) => ({ ...prev, scheduled_time: e.target.value }))}
+                onChange={(e) =>
+                  setMatchForm((prev) => ({
+                    ...prev,
+                    scheduled_time: e.target.value,
+                  }))
+                }
               />
             </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setIsMatchDialogOpen(false)} disabled={isSavingMatch}>
+            <Button
+              variant="outline"
+              onClick={() => setIsMatchDialogOpen(false)}
+              disabled={isSavingMatch}
+            >
               Cancel
             </Button>
             <Button onClick={handleSaveMatch} disabled={isSavingMatch}>
@@ -1689,7 +2000,10 @@ export default function AdminDashboard() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isCompleteDialogOpen} onOpenChange={setIsCompleteDialogOpen}>
+      <Dialog
+        open={isCompleteDialogOpen}
+        onOpenChange={setIsCompleteDialogOpen}
+      >
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Complete Match</DialogTitle>
@@ -1705,7 +2019,12 @@ export default function AdminDashboard() {
                 id="complete-p1-sets"
                 type="number"
                 value={completeForm.player1_sets}
-                onChange={(e) => setCompleteForm((prev) => ({ ...prev, player1_sets: e.target.value }))}
+                onChange={(e) =>
+                  setCompleteForm((prev) => ({
+                    ...prev,
+                    player1_sets: e.target.value,
+                  }))
+                }
               />
             </div>
             <div className="space-y-2">
@@ -1714,7 +2033,12 @@ export default function AdminDashboard() {
                 id="complete-p2-sets"
                 type="number"
                 value={completeForm.player2_sets}
-                onChange={(e) => setCompleteForm((prev) => ({ ...prev, player2_sets: e.target.value }))}
+                onChange={(e) =>
+                  setCompleteForm((prev) => ({
+                    ...prev,
+                    player2_sets: e.target.value,
+                  }))
+                }
               />
             </div>
             <div className="space-y-2">
@@ -1723,7 +2047,12 @@ export default function AdminDashboard() {
                 id="complete-p1-games"
                 type="number"
                 value={completeForm.player1_games}
-                onChange={(e) => setCompleteForm((prev) => ({ ...prev, player1_games: e.target.value }))}
+                onChange={(e) =>
+                  setCompleteForm((prev) => ({
+                    ...prev,
+                    player1_games: e.target.value,
+                  }))
+                }
               />
             </div>
             <div className="space-y-2">
@@ -1732,13 +2061,22 @@ export default function AdminDashboard() {
                 id="complete-p2-games"
                 type="number"
                 value={completeForm.player2_games}
-                onChange={(e) => setCompleteForm((prev) => ({ ...prev, player2_games: e.target.value }))}
+                onChange={(e) =>
+                  setCompleteForm((prev) => ({
+                    ...prev,
+                    player2_games: e.target.value,
+                  }))
+                }
               />
             </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setIsCompleteDialogOpen(false)} disabled={isCompletingMatch}>
+            <Button
+              variant="outline"
+              onClick={() => setIsCompleteDialogOpen(false)}
+              disabled={isCompletingMatch}
+            >
               Cancel
             </Button>
             <Button onClick={handleCompleteMatch} disabled={isCompletingMatch}>
@@ -1748,10 +2086,15 @@ export default function AdminDashboard() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isTournamentDialogOpen} onOpenChange={setIsTournamentDialogOpen}>
+      <Dialog
+        open={isTournamentDialogOpen}
+        onOpenChange={setIsTournamentDialogOpen}
+      >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{isEditingTournament ? "Edit Tournament" : "Add Tournament"}</DialogTitle>
+            <DialogTitle>
+              {isEditingTournament ? "Edit Tournament" : "Add Tournament"}
+            </DialogTitle>
             <DialogDescription>
               Create or update tournament metadata.
             </DialogDescription>
@@ -1773,7 +2116,12 @@ export default function AdminDashboard() {
               <Input
                 id="tournament-name"
                 value={tournamentForm.name}
-                onChange={(e) => setTournamentForm((prev) => ({ ...prev, name: e.target.value }))}
+                onChange={(e) =>
+                  setTournamentForm((prev) => ({
+                    ...prev,
+                    name: e.target.value,
+                  }))
+                }
               />
             </div>
 
@@ -1782,7 +2130,12 @@ export default function AdminDashboard() {
               <Input
                 id="tournament-location"
                 value={tournamentForm.location}
-                onChange={(e) => setTournamentForm((prev) => ({ ...prev, location: e.target.value }))}
+                onChange={(e) =>
+                  setTournamentForm((prev) => ({
+                    ...prev,
+                    location: e.target.value,
+                  }))
+                }
               />
             </div>
 
@@ -1792,7 +2145,12 @@ export default function AdminDashboard() {
                 id="tournament-start-date"
                 type="date"
                 value={tournamentForm.start_date}
-                onChange={(e) => setTournamentForm((prev) => ({ ...prev, start_date: e.target.value }))}
+                onChange={(e) =>
+                  setTournamentForm((prev) => ({
+                    ...prev,
+                    start_date: e.target.value,
+                  }))
+                }
               />
             </div>
 
@@ -1802,7 +2160,12 @@ export default function AdminDashboard() {
                 id="tournament-end-date"
                 type="date"
                 value={tournamentForm.end_date}
-                onChange={(e) => setTournamentForm((prev) => ({ ...prev, end_date: e.target.value }))}
+                onChange={(e) =>
+                  setTournamentForm((prev) => ({
+                    ...prev,
+                    end_date: e.target.value,
+                  }))
+                }
               />
             </div>
 
@@ -1812,7 +2175,12 @@ export default function AdminDashboard() {
                 id="tournament-status"
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={tournamentForm.status}
-                onChange={(e) => setTournamentForm((prev) => ({ ...prev, status: e.target.value }))}
+                onChange={(e) =>
+                  setTournamentForm((prev) => ({
+                    ...prev,
+                    status: e.target.value,
+                  }))
+                }
               >
                 <option value="scheduled">scheduled</option>
                 <option value="live">live</option>
@@ -1826,7 +2194,12 @@ export default function AdminDashboard() {
                 id="tournament-surface"
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={tournamentForm.surface}
-                onChange={(e) => setTournamentForm((prev) => ({ ...prev, surface: e.target.value }))}
+                onChange={(e) =>
+                  setTournamentForm((prev) => ({
+                    ...prev,
+                    surface: e.target.value,
+                  }))
+                }
               >
                 <option value="">Select surface</option>
                 <option value="Hard">Hard</option>
@@ -1834,13 +2207,157 @@ export default function AdminDashboard() {
                 <option value="Grass">Grass</option>
               </select>
             </div>
+
+            {/* ── Visual Customisation (stored in localStorage per tournament) ── */}
+            <div className="space-y-2 md:col-span-2 border-t pt-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                Homepage Appearance
+              </p>
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="tournament-banner">Background Image</Label>
+              <div className="flex items-center gap-3">
+                <label
+                  htmlFor="tournament-banner"
+                  className="flex-1 flex items-center gap-2 h-10 px-3 rounded-md border border-input bg-background text-sm cursor-pointer hover:bg-muted/50 transition-colors"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="text-muted-foreground flex-shrink-0"
+                  >
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                  <span className="truncate text-muted-foreground">
+                    {tournamentForm.banner_image_url
+                      ? "Image selected ✓"
+                      : "Click to upload image…"}
+                  </span>
+                </label>
+                <input
+                  id="tournament-banner"
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      const dataUrl = ev.target?.result as string;
+                      setTournamentForm((prev) => ({
+                        ...prev,
+                        banner_image_url: dataUrl,
+                      }));
+                    };
+                    reader.readAsDataURL(file);
+                  }}
+                />
+                {tournamentForm.banner_image_url && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setTournamentForm((prev) => ({
+                        ...prev,
+                        banner_image_url: "",
+                      }))
+                    }
+                    className="text-xs text-destructive hover:underline flex-shrink-0"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              {tournamentForm.banner_image_url && (
+                <div className="mt-2 rounded-md overflow-hidden border h-24 bg-muted">
+                  <img
+                    src={tournamentForm.banner_image_url}
+                    alt="Banner preview"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Replaces the hero background on the homepage for this
+                tournament.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tournament-accent">Accent Colour</Label>
+              <div className="flex items-center gap-3">
+                <input
+                  id="tournament-accent"
+                  type="color"
+                  value={tournamentForm.accent_color}
+                  onChange={(e) =>
+                    setTournamentForm((prev) => ({
+                      ...prev,
+                      accent_color: e.target.value,
+                    }))
+                  }
+                  className="h-10 w-14 cursor-pointer rounded-md border border-input bg-background p-1"
+                />
+                <Input
+                  value={tournamentForm.accent_color}
+                  onChange={(e) =>
+                    setTournamentForm((prev) => ({
+                      ...prev,
+                      accent_color: e.target.value,
+                    }))
+                  }
+                  placeholder="#e91e8c"
+                  className="flex-1"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Sets the pink/highlight colour used site-wide for this
+                tournament.
+              </p>
+            </div>
+
+            {/* Live preview swatch */}
+            {tournamentForm.accent_color && (
+              <div className="space-y-1">
+                <Label>Preview</Label>
+                <div className="flex items-center gap-2">
+                  <span
+                    className="inline-block w-6 h-6 rounded-full border"
+                    style={{ background: tournamentForm.accent_color }}
+                  />
+                  <span
+                    className="text-sm font-bold"
+                    style={{ color: tournamentForm.accent_color }}
+                  >
+                    Live Score · FINAL
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setIsTournamentDialogOpen(false)} disabled={isSavingTournament}>
+            <Button
+              variant="outline"
+              onClick={() => setIsTournamentDialogOpen(false)}
+              disabled={isSavingTournament}
+            >
               Cancel
             </Button>
-            <Button onClick={handleSaveTournament} disabled={isSavingTournament}>
+            <Button
+              onClick={handleSaveTournament}
+              disabled={isSavingTournament}
+            >
               {isSavingTournament ? "Saving..." : "Save"}
             </Button>
           </div>
@@ -1863,7 +2380,12 @@ export default function AdminDashboard() {
                 id="group-designation"
                 placeholder="A, B, C..."
                 value={groupForm.designation}
-                onChange={(e) => setGroupForm((prev) => ({ ...prev, designation: e.target.value }))}
+                onChange={(e) =>
+                  setGroupForm((prev) => ({
+                    ...prev,
+                    designation: e.target.value,
+                  }))
+                }
               />
             </div>
 
@@ -1911,7 +2433,12 @@ export default function AdminDashboard() {
                 type="number"
                 min={2}
                 value={groupForm.max_players}
-                onChange={(e) => setGroupForm((prev) => ({ ...prev, max_players: e.target.value }))}
+                onChange={(e) =>
+                  setGroupForm((prev) => ({
+                    ...prev,
+                    max_players: e.target.value,
+                  }))
+                }
               />
             </div>
 
@@ -1922,13 +2449,22 @@ export default function AdminDashboard() {
                 type="number"
                 min={1}
                 value={groupForm.qualifiers_count}
-                onChange={(e) => setGroupForm((prev) => ({ ...prev, qualifiers_count: e.target.value }))}
+                onChange={(e) =>
+                  setGroupForm((prev) => ({
+                    ...prev,
+                    qualifiers_count: e.target.value,
+                  }))
+                }
               />
             </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setIsGroupDialogOpen(false)} disabled={isSavingGroup}>
+            <Button
+              variant="outline"
+              onClick={() => setIsGroupDialogOpen(false)}
+              disabled={isSavingGroup}
+            >
               Cancel
             </Button>
             <Button onClick={handleSaveGroup} disabled={isSavingGroup}>
