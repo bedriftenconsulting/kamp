@@ -48,9 +48,13 @@ export default function Players() {
 
   const fetchData = async () => {
     try {
+      const savedId = localStorage.getItem("active_public_tournament_id") || "";
+      const pUrl = savedId ? `${API_V1_URL}/players?tournament_id=${savedId}` : `${API_V1_URL}/players`;
+      const mUrl = savedId ? `${API_V1_URL}/matches?tournament_id=${savedId}` : `${API_V1_URL}/matches`;
+
       const [playersRes, matchesRes] = await Promise.all([
-        fetch(`${API_V1_URL}/players`),
-        fetch(`${API_V1_URL}/matches`),
+        fetch(pUrl),
+        fetch(mUrl),
       ]);
 
       const playersData = await playersRes.json();

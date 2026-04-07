@@ -42,6 +42,7 @@ type Player = {
   date_of_birth: string;
   nationality: string;
   tournament_name: string;
+  tournament_id: string;
   gender: string;
   age: number;
   tennis_level: string;
@@ -96,6 +97,7 @@ type PlayerForm = {
   last_name: string;
   date_of_birth: string;
   nationality: string;
+  tournament_id: string;
   gender: string;
   age: string;
   tennis_level: string;
@@ -188,6 +190,7 @@ const emptyPlayerForm: PlayerForm = {
   last_name: "",
   date_of_birth: "",
   nationality: "",
+  tournament_id: "",
   gender: "",
   age: "",
   tennis_level: "",
@@ -289,6 +292,7 @@ const fetchJSONOrFallback = async <T,>(
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
+  const [globalTournamentId, setGlobalTournamentId] = useState<string>("");
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [matches, setMatches] = useState<Match[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -342,25 +346,32 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     try {
-      const [matchesData, playersData, tournamentData, groupsData] =
-        await Promise.all([
-          fetchJSONOrFallback<any>(`${API_V1_URL}/matches`, []),
-          fetchJSONOrFallback<any>(`${API_V1_URL}/players`, []),
-          fetchJSONOrFallback<any>(`${API_V1_URL}/tournaments`, []),
-          fetchJSONOrFallback<any>(`${API_V1_URL}/groups`, []),
-        ]);
-      console.log("DATA:", tournamentData);
-
+      const tournamentRes = await fetchJSONOrFallback<any>(`${API_V1_URL}/tournaments`, []);
       const toList = (payload: any) =>
         Array.isArray(payload)
           ? payload
           : Array.isArray(payload?.data)
             ? payload.data
             : [];
+      const tournamentList = toList(tournamentRes);
+
+      let tId = globalTournamentId;
+      if (!tId && tournamentList.length > 0) {
+        tId = tournamentList[0].id;
+        setGlobalTournamentId(tId);
+      }
+
+      const pUrl = tId === "all" ? `${API_V1_URL}/players` : `${API_V1_URL}/players?tournament_id=${tId}`;
+      const mUrl = tId === "all" ? `${API_V1_URL}/matches` : `${API_V1_URL}/matches?tournament_id=${tId}`;
+      const [matchesData, playersData, groupsData] =
+        await Promise.all([
+          fetchJSONOrFallback<any>(mUrl, []),
+          fetchJSONOrFallback<any>(pUrl, []),
+          fetchJSONOrFallback<any>(`${API_V1_URL}/groups`, []),
+        ]);
 
       const matchesList = toList(matchesData);
       const playersList = toList(playersData);
-      const tournamentList = toList(tournamentData);
       const groupsList = toList(groupsData);
 
       const formattedMatches: Match[] = matchesList.map((m: any) => ({
@@ -397,6 +408,7 @@ export default function AdminDashboard() {
         date_of_birth: p.date_of_birth || p.dateOfBirth || "",
         nationality: p.nationality || p.country || "",
         tournament_name: p.tournament_name || p.tournamentName || "",
+        tournament_id: p.tournament_id || "",
         gender: p.gender || p.Gender || "",
         age: Number(
           p.age ||
@@ -447,7 +459,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [globalTournamentId]);
 
   useEffect(() => {
     if (activeTab !== "groups") return;
@@ -488,7 +500,7 @@ export default function AdminDashboard() {
 
   const handleOpenAddPlayer = () => {
     setIsEditingPlayer(false);
-    setPlayerForm(emptyPlayerForm);
+    setPlayerForm({ ...emptyPlayerForm, tournament_id: globalTournamentId });
     setIsPlayerDialogOpen(true);
   };
 
@@ -502,6 +514,7 @@ export default function AdminDashboard() {
         ? String(player.date_of_birth).slice(0, 10)
         : "",
       nationality: player.nationality,
+      tournament_id: player.tournament_id || "",
       gender: player.gender || "",
       age: String(player.age ?? ""),
       tennis_level: player.tennis_level || "",
@@ -529,6 +542,7 @@ export default function AdminDashboard() {
           ? `${playerForm.date_of_birth}T00:00:00Z`
           : undefined,
         nationality: playerForm.nationality,
+        tournament_id: playerForm.tournament_id || null,
         gender: playerForm.gender,
         age: Number(playerForm.age || 0),
         tennis_level: playerForm.tennis_level,
@@ -821,9 +835,10 @@ export default function AdminDashboard() {
         throw new Error(err.error || "Failed to save tournament");
       }
 
+      const savedData = await res.json();
       setIsTournamentDialogOpen(false);
       setTournamentForm(emptyTournamentForm);
-      // Refresh the tournament list so the table / homepage reflects the new values
+      setGlobalTournamentId(savedData.id || "");
       await fetchData();
     } catch (error: any) {
       alert(error?.message || "Failed to save tournament");
@@ -1134,6 +1149,20 @@ export default function AdminDashboard() {
           </button>
           <span className="font-bold text-sm">Admin Panel</span>
         </div>
+
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="text-xl font-bold">Manage Content</h2>
+          <select 
+            className="p-2 border rounded-md text-sm bg-card"
+            value={globalTournamentId}
+            onChange={(e) => setGlobalTournamentId(e.target.value)}
+          >
+            <option value="all">All Tournaments</option>
+            {tournaments.map((t) => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+        </div>
         {activeTab === "overview" && (
           <div>
             <h1 className="text-2xl font-black mb-6">Dashboard</h1>
@@ -1424,8 +1453,8 @@ export default function AdminDashboard() {
                       {players
                         .filter((p) => {
                           const levelMatches =
-                            (p.tennis_level || "").toLowerCase() ===
-                            selectedGroup.tennis_level.toLowerCase();
+                            (p.tennis_level || "").trim().toLowerCase() ===
+                            (selectedGroup.tennis_level || "").trim().toLowerCase();
                           const pg = normalizeGender(p.gender);
                           const sg = normalizeGender(selectedGroup.gender);
                           const genderMatches = sg !== "" && pg === sg;
@@ -1706,6 +1735,23 @@ export default function AdminDashboard() {
           </DialogHeader>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="player-tournament-id">Tournament Assignment</Label>
+              <select
+                id="player-tournament-id"
+                className="w-full h-10 flex rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                value={playerForm.tournament_id}
+                onChange={(e) =>
+                  setPlayerForm((prev) => ({ ...prev, tournament_id: e.target.value }))
+                }
+              >
+                <option value="">No Tournament Assigned</option>
+                {tournaments.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="player-id">ID</Label>
               <Input

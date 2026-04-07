@@ -146,7 +146,7 @@ func (s *ScoringService) AddPoint(ctx context.Context, matchID string, player in
 			if winnerNum == 2 {
 				winnerID = p2ID
 			}
-			_ = s.matchRepo.FinishMatch(ctx, matchID, winnerID)
+			_ = s.matchRepo.FinishMatch(ctx, matchID, winnerID, s1, s2)
 		}
 	}
 

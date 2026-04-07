@@ -12,7 +12,9 @@ export default function Schedule() {
 
   const fetchMatches = async () => {
     try {
-      const matchesRes = await fetch(`${API_V1_URL}/matches`);
+      const savedId = localStorage.getItem("active_public_tournament_id") || "";
+      const url = savedId ? `${API_V1_URL}/matches?tournament_id=${savedId}` : `${API_V1_URL}/matches`;
+      const matchesRes = await fetch(url);
       const matchesData = await matchesRes.json();
       const toList = (payload: any) =>
         Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];

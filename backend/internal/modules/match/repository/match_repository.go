@@ -34,7 +34,7 @@ func (r *MatchRepository) Create(ctx context.Context, m *model.Match) error {
 	).Scan(&m.ID, &m.CreatedAt, &m.UpdatedAt)
 }
 
-func (r *MatchRepository) GetAll(ctx context.Context) ([]model.Match, error) {
+func (r *MatchRepository) GetAll(ctx context.Context, tournamentID string) ([]model.Match, error) {
 	query := `
 	SELECT 
 		m.id,
@@ -64,10 +64,15 @@ func (r *MatchRepository) GetAll(ctx context.Context) ([]model.Match, error) {
 	LEFT JOIN players pw ON m.winner_id = pw.id
 	LEFT JOIN group_matches gm ON gm.main_match_id = m.id
 	LEFT JOIN match_state ms ON ms.match_id = m.id
-	ORDER BY m.created_at DESC
 	`
+	var args []interface{}
+	if tournamentID != "" {
+		query += ` WHERE m.tournament_id = $1 `
+		args = append(args, tournamentID)
+	}
+	query += ` ORDER BY m.created_at DESC `
 
-	rows, err := r.db.Query(ctx, query)
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -214,17 +219,40 @@ func (r *MatchRepository) Complete(ctx context.Context, matchID string, winnerID
 	return tx.Commit(ctx)
 }
 
-func (r *MatchRepository) FinishMatch(ctx context.Context, matchID, winnerID string) error {
-	query := `
+func (r *MatchRepository) FinishMatch(ctx context.Context, matchID, winnerID string, p1Sets, p2Sets int) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	// Update the main matches table
+	queryMain := `
 	UPDATE matches
 	SET winner_id = $1,
 	    status = 'completed',
 	    updated_at = NOW()
 	WHERE id = $2
 	`
+	if _, err := tx.Exec(ctx, queryMain, winnerID, matchID); err != nil {
+		return err
+	}
 
-	_, err := r.db.Exec(ctx, query, winnerID, matchID)
-	return err
+	// Update the group_matches table if this match belongs to a group
+	queryGroup := `
+	UPDATE group_matches
+	SET player1_score = $1,
+	    player2_score = $2,
+	    winner_id = $3,
+	    status = 'completed',
+	    updated_at = NOW()
+	WHERE main_match_id = $4
+	`
+	if _, err := tx.Exec(ctx, queryGroup, p1Sets, p2Sets, winnerID, matchID); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
 }
 
 // GetPlayerIDs returns the player1_id and player2_id for a given match.

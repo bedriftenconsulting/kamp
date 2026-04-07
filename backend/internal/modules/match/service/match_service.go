@@ -33,8 +33,8 @@ func (s *MatchService) CreateMatch(ctx context.Context, m *model.Match) error {
 	return s.repo.Create(ctx, m)
 }
 
-func (s *MatchService) GetMatches(ctx context.Context) ([]model.Match, error) {
-	return s.repo.GetAll(ctx)
+func (s *MatchService) GetMatches(ctx context.Context, tournamentID string) ([]model.Match, error) {
+	return s.repo.GetAll(ctx, tournamentID)
 }
 
 func (s *MatchService) UpdateMatch(ctx context.Context, m *model.Match) error {

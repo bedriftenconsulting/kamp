@@ -67,7 +67,7 @@ func (r *PlayerRepository) Create(ctx context.Context, p *model.Player) error {
 	).Scan(&p.CreatedAt, &p.UpdatedAt)
 }
 
-func (r *PlayerRepository) GetAll(ctx context.Context) ([]model.Player, error) {
+func (r *PlayerRepository) GetAll(ctx context.Context, tournamentID string) ([]model.Player, error) {
 	query := `
 	SELECT
 		id,
@@ -86,10 +86,15 @@ func (r *PlayerRepository) GetAll(ctx context.Context) ([]model.Player, error) {
 		created_at,
 		updated_at
 	FROM players
-	ORDER BY ranking ASC
 	`
+	var args []interface{}
+	if tournamentID != "" {
+		query += ` WHERE tournament_id = $1 `
+		args = append(args, tournamentID)
+	}
+	query += ` ORDER BY ranking ASC `
 
-	rows, err := r.db.Query(ctx, query)
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

@@ -307,8 +307,9 @@ func (r *GroupRepository) CreateMainMatchFromGroup(ctx context.Context, group *m
 	round := fmt.Sprintf("Group %s %s %s", group.Gender, group.TennisLevel, group.Designation)
 	var id string
 	err := r.db.QueryRow(ctx, `
-		INSERT INTO matches (player1_id, player2_id, round, status)
-		VALUES ($1, $2, $3, 'scheduled')
+		INSERT INTO matches (tournament_id, player1_id, player2_id, round, status)
+		SELECT tournament_id, $1, $2, $3, 'scheduled'
+		FROM players WHERE id = $1
 		RETURNING id::text
 	`, p1ID, p2ID, round).Scan(&id)
 	if err != nil {

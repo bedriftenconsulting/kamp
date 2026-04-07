@@ -62,7 +62,8 @@ func (h *MatchHandler) CreateMatch(c *gin.Context) {
 }
 
 func (h *MatchHandler) GetMatches(c *gin.Context) {
-	matches, err := h.service.GetMatches(c)
+	tournamentID := c.Query("tournament_id")
+	matches, err := h.service.GetMatches(c, tournamentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

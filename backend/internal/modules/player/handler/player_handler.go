@@ -35,7 +35,6 @@ type playerRequest struct {
 func NewPlayerHandler(service *service.PlayerService) *PlayerHandler {
 	return &PlayerHandler{service: service}
 }
-
 func (h *PlayerHandler) CreatePlayer(c *gin.Context) {
 	var input playerRequest
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -58,7 +57,8 @@ func (h *PlayerHandler) CreatePlayer(c *gin.Context) {
 }
 
 func (h *PlayerHandler) GetPlayers(c *gin.Context) {
-	players, err := h.service.GetPlayers(c)
+	tournamentID := c.Query("tournament_id")
+	players, err := h.service.GetPlayers(c, tournamentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

@@ -9,7 +9,9 @@ export default function Results() {
 
   const fetchMatches = async () => {
     try {
-      const res = await fetch(`${API_V1_URL}/matches`);
+      const savedId = localStorage.getItem("active_public_tournament_id") || "";
+      const url = savedId ? `${API_V1_URL}/matches?tournament_id=${savedId}` : `${API_V1_URL}/matches`;
+      const res = await fetch(url);
       const data = await res.json();
 
       // ✅ Transform backend → frontend
