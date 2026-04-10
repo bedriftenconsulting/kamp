@@ -9,6 +9,22 @@ export default function Standings() {
   useEffect(() => {
     const fetchStandings = async () => {
       try {
+        const activeTournamentId = localStorage.getItem("active_public_tournament_id");
+        let tournamentPlayerIds = new Set<string>();
+
+        if (activeTournamentId) {
+          try {
+            const playersRes = await fetch(`${API_V1_URL}/players?tournament_id=${activeTournamentId}`);
+            const playersData = await playersRes.json();
+            const toList = (payload: any) =>
+              Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
+            const playersList = toList(playersData);
+            playersList.forEach((p: any) => tournamentPlayerIds.add(p.id));
+          } catch (err) {
+            console.error("Error fetching tournament players:", err);
+          }
+        }
+
         const groupsRes = await fetch(`${API_V1_URL}/groups`);
         const groupsData = await groupsRes.json();
         const toList = (payload: any) =>
@@ -34,7 +50,18 @@ export default function Standings() {
           }),
         );
 
-        setGroupStandings(standingsEntries);
+        // Filter: Keep groups that have at least one player in the active tournament's player list
+        // If no active tournament is selected, we could either show all, or show nothing.
+        // Let's show all if activeTournamentId isn't set, otherwise filter.
+        const filteredEntries = activeTournamentId
+          ? standingsEntries.filter(
+              (entry) =>
+                entry.standings.length > 0 &&
+                entry.standings.some((s: any) => tournamentPlayerIds.has(s.player_id))
+            )
+          : standingsEntries;
+
+        setGroupStandings(filteredEntries);
       } catch (error) {
         console.error("Error fetching standings:", error);
       } finally {
