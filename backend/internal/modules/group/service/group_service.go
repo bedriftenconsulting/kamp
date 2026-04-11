@@ -70,8 +70,8 @@ func (s *GroupService) CreateGroup(ctx context.Context, g *model.Group) error {
 	return s.repo.CreateGroup(ctx, g)
 }
 
-func (s *GroupService) ListGroups(ctx context.Context) ([]model.Group, error) {
-	return s.repo.ListGroups(ctx)
+func (s *GroupService) ListGroups(ctx context.Context, tournamentID string) ([]model.Group, error) {
+	return s.repo.ListGroups(ctx, tournamentID)
 }
 
 func (s *GroupService) SetGroupPlayers(ctx context.Context, groupID string, playerIDs []string) error {

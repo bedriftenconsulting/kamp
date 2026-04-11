@@ -22,12 +22,18 @@ func NewGroupRepository(db *pgxpool.Pool) *GroupRepository {
 
 func (r *GroupRepository) CreateGroup(ctx context.Context, g *model.Group) error {
 	query := `
-	INSERT INTO groups (designation, gender, group_type, max_players, qualifiers_count)
-	VALUES ($1, $2, $3, $4, $5)
+	INSERT INTO groups (tournament_id, designation, gender, group_type, max_players, qualifiers_count)
+	VALUES ($1, $2, $3, $4, $5, $6)
 	RETURNING id, is_locked, created_at, updated_at
 	`
 
+	var tID interface{}
+	if g.TournamentID != nil && strings.TrimSpace(*g.TournamentID) != "" {
+		tID = *g.TournamentID
+	}
+
 	return r.db.QueryRow(ctx, query,
+		tID,
 		g.Designation,
 		g.Gender,
 		g.GroupType,
@@ -36,9 +42,9 @@ func (r *GroupRepository) CreateGroup(ctx context.Context, g *model.Group) error
 	).Scan(&g.ID, &g.IsLocked, &g.CreatedAt, &g.UpdatedAt)
 }
 
-func (r *GroupRepository) ListGroups(ctx context.Context) ([]model.Group, error) {
+func (r *GroupRepository) ListGroups(ctx context.Context, tournamentID string) ([]model.Group, error) {
 	query := `
-	SELECT g.id, g.designation, g.gender, g.group_type, g.max_players, g.qualifiers_count, g.is_locked,
+	SELECT g.id, g.tournament_id::text, g.designation, g.gender, g.group_type, g.max_players, g.qualifiers_count, g.is_locked,
 	       COALESCE(gp.players_count, 0) AS players_count,
 	       CASE
 	         WHEN g.is_locked = FALSE THEN 'open'
@@ -61,10 +67,17 @@ func (r *GroupRepository) ListGroups(ctx context.Context) ([]model.Group, error)
 		FROM group_matches
 		GROUP BY group_id
 	) gm ON gm.group_id = g.id
-	ORDER BY g.group_type, g.gender, g.designation
 	`
 
-	rows, err := r.db.Query(ctx, query)
+	args := []interface{}{}
+	if tournamentID != "" {
+		query += " WHERE g.tournament_id = $1 "
+		args = append(args, tournamentID)
+	}
+
+	query += " ORDER BY g.group_type, g.gender, g.designation "
+
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -75,6 +88,7 @@ func (r *GroupRepository) ListGroups(ctx context.Context) ([]model.Group, error)
 		var g model.Group
 		if err := rows.Scan(
 			&g.ID,
+			&g.TournamentID,
 			&g.Designation,
 			&g.Gender,
 			&g.GroupType,
@@ -100,7 +114,7 @@ func (r *GroupRepository) ListGroups(ctx context.Context) ([]model.Group, error)
 
 func (r *GroupRepository) GetGroupByID(ctx context.Context, groupID string) (*model.Group, error) {
 	query := `
-	SELECT g.id, g.designation, g.gender, g.group_type, g.max_players, g.qualifiers_count, g.is_locked,
+	SELECT g.id, g.tournament_id::text, g.designation, g.gender, g.group_type, g.max_players, g.qualifiers_count, g.is_locked,
 	       COALESCE(gp.players_count, 0) AS players_count,
 	       CASE
 	         WHEN g.is_locked = FALSE THEN 'open'
@@ -129,6 +143,7 @@ func (r *GroupRepository) GetGroupByID(ctx context.Context, groupID string) (*mo
 	var g model.Group
 	if err := r.db.QueryRow(ctx, query, groupID).Scan(
 		&g.ID,
+		&g.TournamentID,
 		&g.Designation,
 		&g.Gender,
 		&g.GroupType,
@@ -303,12 +318,17 @@ func (r *GroupRepository) CreateGroupMatch(ctx context.Context, groupID, p1ID, p
 func (r *GroupRepository) CreateMainMatchFromGroup(ctx context.Context, group *model.Group, p1ID, p2ID string) (*string, error) {
 	round := fmt.Sprintf("Group %s %s %s", group.Gender, group.GroupType, group.Designation)
 	var id string
+	
+	tID := (*string)(nil)
+	if group.TournamentID != nil && strings.TrimSpace(*group.TournamentID) != "" {
+		tID = group.TournamentID
+	}
+
 	err := r.db.QueryRow(ctx, `
 		INSERT INTO matches (tournament_id, player1_id, player2_id, round, status)
-		SELECT tournament_id, $1, $2, $3, 'scheduled'
-		FROM players WHERE id = $1
+		VALUES ($1, $2, $3, $4, 'scheduled')
 		RETURNING id::text
-	`, p1ID, p2ID, round).Scan(&id)
+	`, tID, p1ID, p2ID, round).Scan(&id)
 	if err != nil {
 		return nil, err
 	}

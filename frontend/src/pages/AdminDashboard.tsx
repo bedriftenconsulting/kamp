@@ -365,11 +365,12 @@ export default function AdminDashboard() {
 
       const pUrl = tId === "all" ? `${API_V1_URL}/players` : `${API_V1_URL}/players?tournament_id=${tId}`;
       const mUrl = tId === "all" ? `${API_V1_URL}/matches` : `${API_V1_URL}/matches?tournament_id=${tId}`;
+      const gUrl = tId === "all" ? `${API_V1_URL}/groups` : `${API_V1_URL}/groups?tournament_id=${tId}`;
       const [matchesData, playersData, groupsData] =
         await Promise.all([
           fetchJSONOrFallback<any>(mUrl, []),
           fetchJSONOrFallback<any>(pUrl, []),
-          fetchJSONOrFallback<any>(`${API_V1_URL}/groups`, []),
+          fetchJSONOrFallback<any>(gUrl, []),
         ]);
 
       const matchesList = toList(matchesData);
@@ -934,9 +935,15 @@ export default function AdminDashboard() {
       return;
     }
 
+    if (globalTournamentId === "all" || !globalTournamentId) {
+      alert("Please select a specific tournament before creating a group.");
+      return;
+    }
+
     setIsSavingGroup(true);
     try {
       const payload = {
+        tournament_id: globalTournamentId,
         designation: finalDesignation,
         gender: normalizeGender(groupForm.gender) || "Men",
         group_type: groupForm.group_type,

@@ -1,0 +1,1 @@
+ALTER TABLE groups ADD COLUMN tournament_id UUID REFERENCES tournaments(id) ON DELETE CASCADE;

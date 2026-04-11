@@ -8,6 +8,16 @@ export const api = {
     return res.json();
   },
 
+  getGroups: async (tournamentId?: string) => {
+    let url = `${API_V1_URL}/groups`;
+    if (tournamentId) {
+      url += `?tournament_id=${encodeURIComponent(tournamentId)}`;
+    }
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Failed to fetch groups");
+    return res.json();
+  },
+
   getMatches: async () => {
     const res = await fetch(`${BASE_URL}/matches`);
     return res.json();

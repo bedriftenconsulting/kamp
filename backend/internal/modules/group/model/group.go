@@ -4,6 +4,7 @@ import "time"
 
 type Group struct {
 	ID              string    `json:"id"`
+	TournamentID    *string   `json:"tournament_id"`
 	Designation     string    `json:"designation"`
 	Gender          string    `json:"gender"`
 	GroupType       string    `json:"group_type"`

@@ -43,7 +43,8 @@ func (h *GroupHandler) CreateGroup(c *gin.Context) {
 }
 
 func (h *GroupHandler) GetGroups(c *gin.Context) {
-	groups, err := h.service.ListGroups(c)
+	tournamentID := c.Query("tournament_id")
+	groups, err := h.service.ListGroups(c, tournamentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
