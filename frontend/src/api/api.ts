@@ -3,6 +3,11 @@ import { API_V1_URL } from "@/lib/api-url";
 const BASE_URL = API_V1_URL;
 
 export const api = {
+  getTournaments: async () => {
+    const res = await fetch(`${BASE_URL}/tournaments`);
+    return res.json();
+  },
+
   getMatches: async () => {
     const res = await fetch(`${BASE_URL}/matches`);
     return res.json();

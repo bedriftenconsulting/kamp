@@ -4,14 +4,29 @@ import { Button } from "@/components/ui/button";
 import { api } from "@/api/api";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { motion } from "framer-motion";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function UmpireScoring() {
   const [matches, setMatches] = useState<any[]>([]);
+  const [tournaments, setTournaments] = useState<any[]>([]);
+  const [selectedTournamentId, setSelectedTournamentId] = useState<string>("all");
   const [selectedMatch, setSelectedMatch] = useState<any>(null);
   const [scoringState, setScoringState] = useState<any>(null);
 
   // Load matches
   useEffect(() => {
+    api.getTournaments().then((data) => {
+      const toList = (payload: any) =>
+        Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
+      setTournaments(toList(data));
+    });
+
     api.getMatches().then((data) => {
       const availableMatches = data.filter(
         (m: any) => m.status === "scheduled" || m.status === "live"
@@ -61,6 +76,10 @@ export default function UmpireScoring() {
     [selectedMatch]
   );
 
+  const filteredMatches = selectedTournamentId === "all"
+    ? matches
+    : matches.filter((m) => m.tournament_id === selectedTournamentId);
+
   if (!selectedMatch) {
     return (
       <div className="min-h-screen bg-primary flex flex-col items-center justify-center p-4">
@@ -75,13 +94,29 @@ export default function UmpireScoring() {
             Select a match to start scoring
           </p>
 
+          <div className="mb-6">
+            <Select value={selectedTournamentId} onValueChange={setSelectedTournamentId}>
+              <SelectTrigger className="w-full bg-background">
+                <SelectValue placeholder="All Tournaments" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Tournaments</SelectItem>
+                {tournaments.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="flex flex-col gap-3 max-h-[60vh] overflow-y-auto pr-2">
-            {matches.length === 0 ? (
+            {filteredMatches.length === 0 ? (
               <p className="text-muted-foreground text-sm py-4">
-                No active or scheduled matches available.
+                No active or scheduled matches available for this selection.
               </p>
             ) : (
-              matches.map((match) => (
+              filteredMatches.map((match) => (
                 <Button
                   key={match.id}
                   variant="outline"
