@@ -76,10 +76,10 @@ export default function Standings() {
     return <div className="p-10 text-center">Loading standings...</div>;
   }
 
-  const byLevel = {
-    Advanced: groupStandings.filter(({ group }: any) => group.tennis_level === "Advanced"),
-    Intermediate: groupStandings.filter(({ group }: any) => group.tennis_level === "Intermediate"),
-    Beginner: groupStandings.filter(({ group }: any) => group.tennis_level === "Beginner"),
+  const byType = {
+    Singles: groupStandings.filter(({ group }: any) => group.group_type === "Singles"),
+    Doubles: groupStandings.filter(({ group }: any) => group.group_type === "Doubles"),
+    "Mixed Doubles": groupStandings.filter(({ group }: any) => group.group_type === "Mixed Doubles"),
   };
 
   return (
@@ -95,21 +95,21 @@ export default function Standings() {
         </div>
       ) : (
         <div className="space-y-8">
-          {(["Advanced", "Intermediate", "Beginner"] as const).map((level) => (
-            <section key={level}>
-              <h2 className="text-xl font-bold mb-4">{level}</h2>
-              {byLevel[level].length === 0 ? (
+          {(["Singles", "Doubles", "Mixed Doubles"] as const).map((type) => (
+            <section key={type}>
+              <h2 className="text-xl font-bold mb-4">{type}</h2>
+              {byType[type].length === 0 ? (
                 <div className="bg-card border rounded-md p-6 text-sm text-muted-foreground">
-                  No {level.toLowerCase()} groups yet.
+                  No {type.toLowerCase()} groups yet.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {byLevel[level].map(({ group, standings }: any) => (
+                  {byType[type].map(({ group, standings }: any) => (
                     <div key={group.id} className="bg-card border rounded-md overflow-hidden">
                       <div className="px-4 py-3 border-b bg-muted/40">
                         <div className="text-sm font-bold">
                           Group {group.designation}
-                          {group.gender ? ` (${group.gender})` : ""}
+                          {group.gender && group.group_type !== "Mixed Doubles" ? ` (${group.gender})` : ""}
                         </div>
                       </div>
 

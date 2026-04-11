@@ -133,7 +133,7 @@ type Group = {
   id: string;
   designation: string;
   gender: string;
-  tennis_level: "Beginner" | "Intermediate" | "Advanced";
+  group_type: string;
   max_players: number;
   qualifiers_count: number;
   is_locked: boolean;
@@ -142,9 +142,10 @@ type Group = {
 };
 
 type GroupForm = {
-  designation: string;
+  designation_type: string;
+  custom_designation: string;
   gender: "Men" | "Women";
-  tennis_level: "Beginner" | "Intermediate" | "Advanced";
+  group_type: string;
   max_players: string;
   qualifiers_count: string;
 };
@@ -233,9 +234,10 @@ const emptyTournamentForm: TournamentForm = {
 };
 
 const emptyGroupForm: GroupForm = {
-  designation: "",
+  designation_type: "A",
+  custom_designation: "",
   gender: "Men",
-  tennis_level: "Beginner",
+  group_type: "Singles",
   max_players: "4",
   qualifiers_count: "2",
 };
@@ -439,7 +441,7 @@ export default function AdminDashboard() {
         id: g.id,
         designation: g.designation,
         gender: normalizeGender(g.gender || g.Gender) || "",
-        tennis_level: g.tennis_level,
+        group_type: g.group_type,
         max_players: Number(g.max_players || 0),
         qualifiers_count: Number(g.qualifiers_count || 0),
         is_locked: Boolean(g.is_locked),
@@ -918,8 +920,13 @@ export default function AdminDashboard() {
   };
 
   const handleSaveGroup = async () => {
+    const finalDesignation =
+      groupForm.designation_type === "Custom"
+        ? groupForm.custom_designation
+        : groupForm.designation_type;
+
     if (
-      !groupForm.designation ||
+      !finalDesignation ||
       !groupForm.max_players ||
       !groupForm.qualifiers_count
     ) {
@@ -930,9 +937,9 @@ export default function AdminDashboard() {
     setIsSavingGroup(true);
     try {
       const payload = {
-        designation: groupForm.designation,
+        designation: finalDesignation,
         gender: normalizeGender(groupForm.gender) || "Men",
-        tennis_level: groupForm.tennis_level,
+        group_type: groupForm.group_type,
         max_players: Number(groupForm.max_players),
         qualifiers_count: Number(groupForm.qualifiers_count),
       };
@@ -1386,7 +1393,7 @@ export default function AdminDashboard() {
                         <td className="px-4 py-3">
                           {normalizeGender(g.gender) || "-"}
                         </td>
-                        <td className="px-4 py-3">{g.tennis_level}</td>
+                        <td className="px-4 py-3">{g.group_type}</td>
                         <td className="px-4 py-3">
                           {g.players_count} / {g.max_players}
                         </td>
@@ -1439,7 +1446,7 @@ export default function AdminDashboard() {
                   <div className="flex items-center justify-between">
                     <h2 className="text-lg font-bold">
                       {normalizeGender(selectedGroup.gender) || "Unspecified"}{" "}
-                      {selectedGroup.tennis_level} {selectedGroup.designation}
+                      {selectedGroup.group_type} {selectedGroup.designation}
                     </h2>
                     <div className="text-xs text-muted-foreground">
                       {selectedGroup.players_count}/{selectedGroup.max_players}{" "}
@@ -1452,13 +1459,11 @@ export default function AdminDashboard() {
                     <div className="max-h-56 overflow-auto rounded-md border p-3 space-y-2">
                       {players
                         .filter((p) => {
-                          const levelMatches =
-                            (p.tennis_level || "").trim().toLowerCase() ===
-                            (selectedGroup.tennis_level || "").trim().toLowerCase();
+                          const isMixed = (selectedGroup.group_type || "").trim().toLowerCase().includes("mixed");
                           const pg = normalizeGender(p.gender);
                           const sg = normalizeGender(selectedGroup.gender);
-                          const genderMatches = sg !== "" && pg === sg;
-                          return levelMatches && genderMatches;
+                          const genderMatches = isMixed || (sg !== "" && pg === sg);
+                          return genderMatches;
                         })
                         .map((p) => {
                           const checked = groupPlayerSelections.includes(p.id);
@@ -1497,12 +1502,11 @@ export default function AdminDashboard() {
                         })}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      Only players with level{" "}
-                      <strong>{selectedGroup.tennis_level}</strong> and gender{" "}
+                      Only players matching the group's gender{" "}
                       <strong>
                         {normalizeGender(selectedGroup.gender) || "Unspecified"}
                       </strong>{" "}
-                      are listed.
+                      are listed (Mixed Doubles ignores gender filters).
                     </div>
                   </div>
 
@@ -2420,18 +2424,40 @@ export default function AdminDashboard() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="group-designation">Group Designation</Label>
-              <Input
-                id="group-designation"
-                placeholder="A, B, C..."
-                value={groupForm.designation}
-                onChange={(e) =>
-                  setGroupForm((prev) => ({
-                    ...prev,
-                    designation: e.target.value,
-                  }))
-                }
-              />
+              <Label htmlFor="group-designation">Group Designation (Naming format)</Label>
+              <div className="flex gap-2">
+                <select
+                  id="group-designation"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={groupForm.designation_type}
+                  onChange={(e) =>
+                    setGroupForm((prev) => ({
+                      ...prev,
+                      designation_type: e.target.value,
+                    }))
+                  }
+                >
+                  <option value="A">A</option>
+                  <option value="B">B</option>
+                  <option value="C">C</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="Custom">Custom (user-defined)</option>
+                </select>
+                {groupForm.designation_type === "Custom" && (
+                  <Input
+                    placeholder="Enter custom name"
+                    value={groupForm.custom_designation}
+                    onChange={(e) =>
+                      setGroupForm((prev) => ({
+                        ...prev,
+                        custom_designation: e.target.value,
+                      }))
+                    }
+                  />
+                )}
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -2453,21 +2479,21 @@ export default function AdminDashboard() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="group-level">Tennis Level</Label>
+              <Label htmlFor="group-type">Group Type</Label>
               <select
-                id="group-level"
+                id="group-type"
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={groupForm.tennis_level}
+                value={groupForm.group_type}
                 onChange={(e) =>
                   setGroupForm((prev) => ({
                     ...prev,
-                    tennis_level: e.target.value as GroupForm["tennis_level"],
+                    group_type: e.target.value,
                   }))
                 }
               >
-                <option value="Beginner">Beginner</option>
-                <option value="Intermediate">Intermediate</option>
-                <option value="Advanced">Advanced</option>
+                <option value="Singles">Singles</option>
+                <option value="Doubles">Doubles</option>
+                <option value="Mixed Doubles">Mixed Doubles</option>
               </select>
             </div>
 

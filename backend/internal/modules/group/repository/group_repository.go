@@ -22,7 +22,7 @@ func NewGroupRepository(db *pgxpool.Pool) *GroupRepository {
 
 func (r *GroupRepository) CreateGroup(ctx context.Context, g *model.Group) error {
 	query := `
-	INSERT INTO groups (designation, gender, tennis_level, max_players, qualifiers_count)
+	INSERT INTO groups (designation, gender, group_type, max_players, qualifiers_count)
 	VALUES ($1, $2, $3, $4, $5)
 	RETURNING id, is_locked, created_at, updated_at
 	`
@@ -30,7 +30,7 @@ func (r *GroupRepository) CreateGroup(ctx context.Context, g *model.Group) error
 	return r.db.QueryRow(ctx, query,
 		g.Designation,
 		g.Gender,
-		g.TennisLevel,
+		g.GroupType,
 		g.MaxPlayers,
 		g.QualifiersCount,
 	).Scan(&g.ID, &g.IsLocked, &g.CreatedAt, &g.UpdatedAt)
@@ -38,7 +38,7 @@ func (r *GroupRepository) CreateGroup(ctx context.Context, g *model.Group) error
 
 func (r *GroupRepository) ListGroups(ctx context.Context) ([]model.Group, error) {
 	query := `
-	SELECT g.id, g.designation, g.gender, g.tennis_level, g.max_players, g.qualifiers_count, g.is_locked,
+	SELECT g.id, g.designation, g.gender, g.group_type, g.max_players, g.qualifiers_count, g.is_locked,
 	       COALESCE(gp.players_count, 0) AS players_count,
 	       CASE
 	         WHEN g.is_locked = FALSE THEN 'open'
@@ -61,7 +61,7 @@ func (r *GroupRepository) ListGroups(ctx context.Context) ([]model.Group, error)
 		FROM group_matches
 		GROUP BY group_id
 	) gm ON gm.group_id = g.id
-	ORDER BY g.tennis_level, g.gender, g.designation
+	ORDER BY g.group_type, g.gender, g.designation
 	`
 
 	rows, err := r.db.Query(ctx, query)
@@ -77,7 +77,7 @@ func (r *GroupRepository) ListGroups(ctx context.Context) ([]model.Group, error)
 			&g.ID,
 			&g.Designation,
 			&g.Gender,
-			&g.TennisLevel,
+			&g.GroupType,
 			&g.MaxPlayers,
 			&g.QualifiersCount,
 			&g.IsLocked,
@@ -100,7 +100,7 @@ func (r *GroupRepository) ListGroups(ctx context.Context) ([]model.Group, error)
 
 func (r *GroupRepository) GetGroupByID(ctx context.Context, groupID string) (*model.Group, error) {
 	query := `
-	SELECT g.id, g.designation, g.gender, g.tennis_level, g.max_players, g.qualifiers_count, g.is_locked,
+	SELECT g.id, g.designation, g.gender, g.group_type, g.max_players, g.qualifiers_count, g.is_locked,
 	       COALESCE(gp.players_count, 0) AS players_count,
 	       CASE
 	         WHEN g.is_locked = FALSE THEN 'open'
@@ -131,7 +131,7 @@ func (r *GroupRepository) GetGroupByID(ctx context.Context, groupID string) (*mo
 		&g.ID,
 		&g.Designation,
 		&g.Gender,
-		&g.TennisLevel,
+		&g.GroupType,
 		&g.MaxPlayers,
 		&g.QualifiersCount,
 		&g.IsLocked,
@@ -221,12 +221,12 @@ func (r *GroupRepository) SetGroupPlayers(ctx context.Context, groupID string, p
 	return tx.Commit(ctx)
 }
 
-func (r *GroupRepository) ValidatePlayersLevelAndGender(ctx context.Context, playerIDs []string, expectedLevel, expectedGender string) error {
+func (r *GroupRepository) ValidatePlayersLevelAndGender(ctx context.Context, playerIDs []string, expectedGender string) error {
 	if len(playerIDs) == 0 {
 		return nil
 	}
 
-	query := `SELECT id, COALESCE(tennis_level, ''), COALESCE(gender, '') FROM players WHERE id = ANY($1)`
+	query := `SELECT id, COALESCE(gender, '') FROM players WHERE id = ANY($1)`
 	rows, err := r.db.Query(ctx, query, playerIDs)
 	if err != nil {
 		return err
@@ -236,15 +236,12 @@ func (r *GroupRepository) ValidatePlayersLevelAndGender(ctx context.Context, pla
 	seen := map[string]bool{}
 	normalizedExpectedGender := normalizeGenderAlias(expectedGender)
 	for rows.Next() {
-		var id, level, gender string
-		if err := rows.Scan(&id, &level, &gender); err != nil {
+		var id, gender string
+		if err := rows.Scan(&id, &gender); err != nil {
 			return err
 		}
 		seen[id] = true
-		if !strings.EqualFold(strings.TrimSpace(level), strings.TrimSpace(expectedLevel)) {
-			return fmt.Errorf("player %s has tennis_level %q, expected %q", id, level, expectedLevel)
-		}
-		if normalizeGenderAlias(gender) != normalizedExpectedGender {
+		if normalizedExpectedGender != "" && normalizeGenderAlias(gender) != normalizedExpectedGender {
 			return fmt.Errorf("player %s has gender %q, expected %q", id, gender, expectedGender)
 		}
 	}
@@ -304,7 +301,7 @@ func (r *GroupRepository) CreateGroupMatch(ctx context.Context, groupID, p1ID, p
 }
 
 func (r *GroupRepository) CreateMainMatchFromGroup(ctx context.Context, group *model.Group, p1ID, p2ID string) (*string, error) {
-	round := fmt.Sprintf("Group %s %s %s", group.Gender, group.TennisLevel, group.Designation)
+	round := fmt.Sprintf("Group %s %s %s", group.Gender, group.GroupType, group.Designation)
 	var id string
 	err := r.db.QueryRow(ctx, `
 		INSERT INTO matches (tournament_id, player1_id, player2_id, round, status)
