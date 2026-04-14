@@ -528,6 +528,34 @@ func (r *GroupRepository) GetStandings(ctx context.Context, groupID string, qual
 	return standings, nil
 }
 
+func (r *GroupRepository) GetTournamentQualifiers(ctx context.Context, tournamentID string) ([]model.GroupStanding, error) {
+	// First fetch all completed groups in the tournament
+	groups, err := r.ListGroups(ctx, tournamentID)
+	if err != nil {
+		return nil, err
+	}
+
+	var allQualifiers []model.GroupStanding
+	for _, g := range groups {
+		if g.Status == "completed" {
+			standings, err := r.GetStandings(ctx, g.ID, g.QualifiersCount)
+			if err != nil {
+				return nil, err
+			}
+			for _, s := range standings {
+				if s.IsQualified {
+					// We can append the group Designation to the PlayerName for easier reference in UI
+					s.PlayerName = fmt.Sprintf("%s (%s %s)", s.PlayerName, g.Gender, g.Designation)
+					// Or just attach Group ID if we wanted, but strings are easiest for now.
+					allQualifiers = append(allQualifiers, s)
+				}
+			}
+		}
+	}
+
+	return allQualifiers, nil
+}
+
 func nullIfEmptyPtr(v *string) interface{} {
 	if v == nil || strings.TrimSpace(*v) == "" {
 		return nil

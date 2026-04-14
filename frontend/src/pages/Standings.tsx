@@ -121,12 +121,13 @@ export default function Standings() {
                             <th className="px-4 py-2 text-left">L</th>
                             <th className="px-4 py-2 text-left">Pts</th>
                             <th className="px-4 py-2 text-left">Diff</th>
+                            <th className="px-4 py-2 text-left">Q</th>
                           </tr>
                         </thead>
                         <tbody>
                           {standings.length === 0 ? (
                             <tr>
-                              <td colSpan={5} className="px-4 py-3 text-muted-foreground">
+                              <td colSpan={6} className="px-4 py-3 text-muted-foreground">
                                 No results yet.
                               </td>
                             </tr>
@@ -138,6 +139,15 @@ export default function Standings() {
                                 <td className="px-4 py-2">{s.losses}</td>
                                 <td className="px-4 py-2">{s.points}</td>
                                 <td className="px-4 py-2">{s.score_diff}</td>
+                                <td className="px-4 py-2">
+                                  {group.status === "completed" && s.is_qualified ? (
+                                    <span className="bg-green-500/20 text-green-500 font-bold px-2 py-1 rounded text-[10px] uppercase">
+                                      Qualified
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground">-</span>
+                                  )}
+                                </td>
                               </tr>
                             ))
                           )}

@@ -188,3 +188,10 @@ func (s *GroupService) DeleteGroup(ctx context.Context, groupID string) error {
 
 	return s.repo.DeleteGroup(ctx, groupID)
 }
+
+func (s *GroupService) GetTournamentQualifiers(ctx context.Context, tournamentID string) ([]model.GroupStanding, error) {
+	if strings.TrimSpace(tournamentID) == "" {
+		return nil, fmt.Errorf("tournament id is required")
+	}
+	return s.repo.GetTournamentQualifiers(ctx, tournamentID)
+}

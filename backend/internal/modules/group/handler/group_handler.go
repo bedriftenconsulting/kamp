@@ -181,3 +181,23 @@ func (h *GroupHandler) DeleteGroup(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "group deleted"})
 }
+
+func (h *GroupHandler) GetTournamentQualifiers(c *gin.Context) {
+	tournamentID := strings.TrimSpace(c.Query("tournament_id"))
+	if tournamentID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tournament_id query parameter is required"})
+		return
+	}
+
+	qualifiers, err := h.service.GetTournamentQualifiers(c, tournamentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if qualifiers == nil {
+		qualifiers = make([]model.GroupStanding, 0)
+	}
+
+	c.JSON(http.StatusOK, qualifiers)
+}

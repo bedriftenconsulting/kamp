@@ -148,6 +148,38 @@ func (h *MatchHandler) CompleteMatch(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "match completed"})
 }
 
+type generateBracketRequest struct {
+	Size      int      `json:"size" binding:"required"`
+	PlayerIDs []string `json:"player_ids" binding:"required"`
+}
+
+func (h *MatchHandler) GenerateBracket(c *gin.Context) {
+	tournamentID := c.Param("id")
+	if strings.TrimSpace(tournamentID) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tournament id is required"})
+		return
+	}
+
+	var input generateBracketRequest
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if len(input.PlayerIDs) != input.Size {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "length of player_ids must match size"})
+		return
+	}
+
+	err := h.service.GenerateBracket(c, tournamentID, input.PlayerIDs)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"message": "bracket generated successfully"})
+}
+
 func buildMatchFromRequest(input matchRequest) (*model.Match, error) {
 	status := input.Status
 	if status == "" {

@@ -31,6 +31,7 @@ const tabs = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "players", label: "Players", icon: Users },
   { id: "groups", label: "Groups", icon: Blocks },
+  { id: "playoffs", label: "Playoffs", icon: Trophy },
   { id: "matches", label: "Matches", icon: Calendar },
   { id: "tournament", label: "Tournament", icon: Trophy },
 ];
@@ -72,6 +73,7 @@ type Match = {
   player1: { id?: string | null; name: string };
   player2: { id?: string | null; name: string };
   court: string;
+  bracket_position?: number | null;
 };
 
 // Tournament mirrors the Go model returned by GET /tournaments.
@@ -346,6 +348,64 @@ export default function AdminDashboard() {
   const [matchPage, setMatchPage] = useState(1);
   const matchesPerPage = 20;
 
+  const [bracketSize, setBracketSize] = useState<number>(4);
+  const [bracketPlayers, setBracketPlayers] = useState<string[]>(Array(4).fill(""));
+  const [isGeneratingBracket, setIsGeneratingBracket] = useState(false);
+
+  const [playoffQualifiers, setPlayoffQualifiers] = useState<any[]>([]);
+  const [selectedPlayoffGroupId, setSelectedPlayoffGroupId] = useState<string>("");
+  const [playoffGroupStandings, setPlayoffGroupStandings] = useState<GroupStanding[]>([]);
+
+  useEffect(() => {
+    setBracketPlayers((prev) => {
+      if (prev.length === bracketSize) return prev;
+      const arr = Array(bracketSize).fill("");
+      for (let i = 0; i < Math.min(prev.length, bracketSize); i++) {
+        arr[i] = prev[i];
+      }
+      return arr;
+    });
+  }, [bracketSize]);
+
+  const handleGenerateBracket = async () => {
+    if (!globalTournamentId) {
+      alert("Please select a tournament first from the global dropdown (top right).");
+      return;
+    }
+    if (bracketPlayers.some((p) => !p)) {
+      alert("Please select players for all bracket slots.");
+      return;
+    }
+
+    const hasExistingBracket = matches.some(m => m.bracket_position !== null && m.tournament_id === globalTournamentId);
+    if (hasExistingBracket) {
+      const confirmOverwrite = window.confirm(
+        "A playoff bracket already exists for this tournament. Generating a new one will DELETE the existing bracket and any score progress. Do you wish to continue?"
+      );
+      if (!confirmOverwrite) return;
+    }
+
+    setIsGeneratingBracket(true);
+    try {
+      const res = await fetch(`${API_V1_URL}/tournaments/${globalTournamentId}/bracket`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ size: bracketSize, player_ids: bracketPlayers }),
+      });
+      if (!res.ok) {
+        const err = await parseResponseBody(res);
+        throw new Error(err?.error || "Failed to generate bracket");
+      }
+      alert("Bracket generated successfully!");
+      fetchData();
+      setActiveTab("matches");
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setIsGeneratingBracket(false);
+    }
+  };
+
   const fetchData = async () => {
     try {
       const tournamentRes = await fetchJSONOrFallback<any>(`${API_V1_URL}/tournaments`, []);
@@ -402,6 +462,7 @@ export default function AdminDashboard() {
           name: m.player2_name || "TBD",
         },
         court: m.court_id || "-",
+        bracket_position: m.bracket_position ?? null,
       }));
 
       const formattedPlayers: Player[] = playersList.map((p: any) => ({
@@ -487,6 +548,33 @@ export default function AdminDashboard() {
       console.error("Failed to auto-load group details:", error);
     });
   }, [activeTab, groups, selectedGroupId]);
+
+  useEffect(() => {
+    if (activeTab === "playoffs" && globalTournamentId && globalTournamentId !== "all") {
+      fetch(`${API_V1_URL}/groups/qualifiers?tournament_id=${globalTournamentId}`)
+        .then(res => res.json())
+        .then(data => {
+          setPlayoffQualifiers(Array.isArray(data) ? data : (data?.data || []));
+        })
+        .catch(err => console.error("Error fetching qualifiers:", err));
+    }
+  }, [activeTab, globalTournamentId]);
+
+  useEffect(() => {
+    if (selectedPlayoffGroupId) {
+      const grp = groups.find(g => g.id === selectedPlayoffGroupId);
+      if (grp) {
+        fetch(`${API_V1_URL}/groups/${grp.id}/standings`)
+          .then(res => res.json())
+          .then(data => {
+            setPlayoffGroupStandings(Array.isArray(data) ? data : (data?.data || []));
+          })
+          .catch(err => console.error("Error fetching playoff group standings:", err));
+      }
+    } else {
+      setPlayoffGroupStandings([]);
+    }
+  }, [selectedPlayoffGroupId, groups]);
 
   const finalizedMatches = useMemo(
     () => matches.filter((m) => m.status === "completed"),
@@ -1571,7 +1659,13 @@ export default function AdminDashboard() {
                               <td className="px-3 py-2">{s.points}</td>
                               <td className="px-3 py-2">{s.score_diff}</td>
                               <td className="px-3 py-2">
-                                {s.is_qualified ? "Yes" : "-"}
+                                {selectedGroup?.status === "completed" && s.is_qualified ? (
+                                  <span className="bg-green-500/20 text-green-500 font-bold px-2 py-1 rounded text-xs">
+                                    Qualified
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
                               </td>
                             </tr>
                           ))
@@ -1730,6 +1824,154 @@ export default function AdminDashboard() {
                 No tournaments available
               </div>
             )}
+          </div>
+        )}
+
+        {/* =========================================================
+            PLAYOFFS (BRACKET GENERATOR)
+            ========================================================= */}
+        {activeTab === "playoffs" && (
+          <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-card w-full p-6 rounded-xl border shadow-sm">
+              <div className="mb-6 pb-4 border-b">
+                <h2 className="text-xl font-bold mb-2">Playoff Bracket Generator</h2>
+                <p className="text-sm text-muted-foreground">
+                  Select a tournament, choose the number of players, and assign players to the first-round match slots.
+                  The system will automatically create empty placeholders for future rounds like the Semifinal and Final.
+                </p>
+              </div>
+
+              {!globalTournamentId ? (
+                <div className="p-8 text-center text-muted-foreground border-2 border-dashed rounded-xl">
+                  Please select a tournament from the top right dropdown first.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Left: Bracket Generator */}
+                  <div className="space-y-8">
+                    <div className="space-y-3">
+                      <Label className="text-base font-semibold">1. Select Bracket Size (Powers of 2)</Label>
+                      <select
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={bracketSize}
+                        onChange={(e) => setBracketSize(Number(e.target.value))}
+                      >
+                        {[2, 4, 8, 16, 32, 64].map((size) => (
+                          <option key={size} value={size}>
+                            {size} Players
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-3">
+                      <Label className="text-base font-semibold">2. Seed First Round</Label>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Matchups are created sequentially. Only qualified players are listed below.
+                      </p>
+                      <div className="grid grid-cols-1 gap-y-3 bg-muted/20 p-4 rounded-xl border">
+                        {Array.from({ length: bracketSize }).map((_, idx) => (
+                          <div key={`seed-${idx}`} className={`flex items-center gap-3 ${idx % 2 !== 0 && idx !== bracketSize - 1 ? "pb-3 border-b border-border border-dashed" : ""}`}>
+                            <span className="w-8 text-sm font-bold text-muted-foreground text-right">{idx + 1}.</span>
+                            <select
+                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                              value={bracketPlayers[idx] || ""}
+                              onChange={(e) => {
+                                const newArr = [...bracketPlayers];
+                                newArr[idx] = e.target.value;
+                                setBracketPlayers(newArr);
+                              }}
+                            >
+                              <option value="">Select qualified player...</option>
+                              {playoffQualifiers.map((p) => (
+                                <option key={p.player_id} value={p.player_id}>
+                                  {p.player_name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-4 flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">
+                        {playoffQualifiers.length} Qualified Candidates
+                      </span>
+                      <Button 
+                        size="lg" 
+                        className="gap-2" 
+                        onClick={handleGenerateBracket}
+                        disabled={isGeneratingBracket}
+                      >
+                        {isGeneratingBracket ? "Generating..." : <><Trophy size={18} /> Generate Bracket</>}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Right: Group Reference Viewer */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-bold">Group Qualification Reference</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Select a group to review its final standings and verify who qualified.
+                    </p>
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={selectedPlayoffGroupId}
+                      onChange={(e) => setSelectedPlayoffGroupId(e.target.value)}
+                    >
+                      <option value="">Select a group...</option>
+                      {groups.filter(g => g.status === "completed").map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.group_type} - Group {g.designation} {g.gender ? `(${g.gender})` : ''}
+                        </option>
+                      ))}
+                    </select>
+
+                    {selectedPlayoffGroupId && (
+                      <div className="bg-card border rounded-md overflow-hidden mt-4">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/50">
+                            <tr>
+                              <th className="px-3 py-2 text-left">#</th>
+                              <th className="px-3 py-2 text-left">Player</th>
+                              <th className="px-3 py-2 text-left">W-L</th>
+                              <th className="px-3 py-2 text-left">Q</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {playoffGroupStandings.length === 0 ? (
+                              <tr>
+                                <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
+                                  No standings data.
+                                </td>
+                              </tr>
+                            ) : (
+                              playoffGroupStandings.map((s) => (
+                                <tr key={s.player_id} className="border-t">
+                                  <td className="px-3 py-2 font-semibold text-muted-foreground">{s.rank}</td>
+                                  <td className="px-3 py-2">{s.player_name}</td>
+                                  <td className="px-3 py-2 text-muted-foreground">{s.wins}-{s.losses}</td>
+                                  <td className="px-3 py-2">
+                                    {s.is_qualified ? (
+                                      <span className="bg-green-500/20 text-green-500 font-bold px-2 py-1 rounded text-xs">
+                                        Yes
+                                      </span>
+                                    ) : (
+                                      <span className="text-muted-foreground">-</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </main>
