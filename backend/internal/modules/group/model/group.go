@@ -4,9 +4,10 @@ import "time"
 
 type Group struct {
 	ID              string    `json:"id"`
+	TournamentID    *string   `json:"tournament_id"`
 	Designation     string    `json:"designation"`
 	Gender          string    `json:"gender"`
-	TennisLevel     string    `json:"tennis_level"`
+	GroupType       string    `json:"group_type"`
 	MaxPlayers      int       `json:"max_players"`
 	QualifiersCount int       `json:"qualifiers_count"`
 	IsLocked        bool      `json:"is_locked"`

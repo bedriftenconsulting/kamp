@@ -2,8 +2,11 @@ import { API_V1_URL } from "@/lib/api-url";
 
 const BASE_URL = API_V1_URL;
 
-export const getPlayers = async () => {
-  const res = await fetch(`${BASE_URL}/players`);
+export const getPlayers = async (tournamentId?: string) => {
+  const url = tournamentId 
+    ? `${BASE_URL}/players?tournament_id=${encodeURIComponent(tournamentId)}`
+    : `${BASE_URL}/players`;
+  const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch players");
   return res.json();
 };

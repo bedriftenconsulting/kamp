@@ -147,3 +147,22 @@
 .animate-ticker-scroll {
   animation: ticker-scroll 30s linear infinite;
 }
+
+/* ── Tournament accent colour override ──────────────────────────────
+   When the homepage sets --t-accent on :root (hex value from localStorage),
+   override the "pink" highlight elements so they match the chosen colour.
+   ─────────────────────────────────────────────────────────────────── */
+:root:has(body) {
+  --t-accent: initial;
+}
+
+/* Applied when --t-accent is set (injected by Index.tsx on :root) */
+.with-tournament-accent .tournament-accent-text {
+  color: var(--t-accent) !important;
+}
+
+.with-tournament-accent .tournament-accent-bg {
+  background-color: var(--t-accent) !important;
+}
+
+

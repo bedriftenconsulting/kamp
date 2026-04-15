@@ -14,6 +14,21 @@ const normalizeKnockoutLevel = (level: string): KnockoutLevel => {
 };
 
 export const api = {
+  getTournaments: async () => {
+    const res = await fetch(`${BASE_URL}/tournaments`);
+    return res.json();
+  },
+
+  getGroups: async (tournamentId?: string) => {
+    let url = `${API_V1_URL}/groups`;
+    if (tournamentId) {
+      url += `?tournament_id=${encodeURIComponent(tournamentId)}`;
+    }
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Failed to fetch groups");
+    return res.json();
+  },
+
   getMatches: async () => {
     const res = await fetch(`${BASE_URL}/matches`);
     return res.json();
@@ -31,35 +46,6 @@ export const api = {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ player }),
-    });
-    return res.json();
-  },
-
-  getKnockoutByLevel: async (level: string) => {
-    const normalized = normalizeKnockoutLevel(level);
-    const res = await fetch(`${BASE_URL}/knockout/${normalized}`);
-    return res.json();
-  },
-
-  generateKnockoutByLevel: async (level: string) => {
-    const normalized = normalizeKnockoutLevel(level);
-    const res = await fetch(`${BASE_URL}/knockout/${normalized}/generate`, {
-      method: "POST",
-    });
-    return res.json();
-  },
-
-  saveKnockoutResult: async (matchId: string, payload: {
-    winner_id: string;
-    player1_score: number;
-    player2_score: number;
-  }) => {
-    const res = await fetch(`${BASE_URL}/knockout/matches/${matchId}/result`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
     });
     return res.json();
   },

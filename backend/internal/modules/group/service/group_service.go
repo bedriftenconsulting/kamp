@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"kamp/internal/modules/group/model"
@@ -18,19 +17,17 @@ func NewGroupService(repo *repository.GroupRepository) *GroupService {
 	return &GroupService{repo: repo}
 }
 
-var designationRegex = regexp.MustCompile(`^[A-Za-z]+$`)
-
-func normalizeLevel(level string) (string, error) {
-	s := strings.TrimSpace(strings.ToLower(level))
+func normalizeGroupType(gt string) (string, error) {
+	s := strings.TrimSpace(strings.ToLower(gt))
 	switch s {
-	case "beginner":
-		return "Beginner", nil
-	case "intermediate":
-		return "Intermediate", nil
-	case "advanced":
-		return "Advanced", nil
+	case "singles":
+		return "Singles", nil
+	case "doubles":
+		return "Doubles", nil
+	case "mixed doubles", "mixed":
+		return "Mixed Doubles", nil
 	default:
-		return "", fmt.Errorf("invalid tennis_level %q (allowed: Beginner, Intermediate, Advanced)", level)
+		return "", fmt.Errorf("invalid group_type %q (allowed: Singles, Doubles, Mixed Doubles)", gt)
 	}
 }
 
@@ -47,11 +44,11 @@ func normalizeGender(gender string) (string, error) {
 }
 
 func (s *GroupService) CreateGroup(ctx context.Context, g *model.Group) error {
-	if !designationRegex.MatchString(strings.TrimSpace(g.Designation)) {
-		return fmt.Errorf("designation must be alphabetical (e.g., A, B, C)")
+	if strings.TrimSpace(g.Designation) == "" {
+		return fmt.Errorf("designation cannot be empty")
 	}
 
-	level, err := normalizeLevel(g.TennisLevel)
+	gt, err := normalizeGroupType(g.GroupType)
 	if err != nil {
 		return err
 	}
@@ -59,9 +56,9 @@ func (s *GroupService) CreateGroup(ctx context.Context, g *model.Group) error {
 	if err != nil {
 		return err
 	}
-	g.TennisLevel = level
+	g.GroupType = gt
 	g.Gender = gender
-	g.Designation = strings.ToUpper(strings.TrimSpace(g.Designation))
+	g.Designation = strings.TrimSpace(g.Designation)
 
 	if g.MaxPlayers < 2 {
 		return fmt.Errorf("max_players must be at least 2")
@@ -73,8 +70,8 @@ func (s *GroupService) CreateGroup(ctx context.Context, g *model.Group) error {
 	return s.repo.CreateGroup(ctx, g)
 }
 
-func (s *GroupService) ListGroups(ctx context.Context) ([]model.Group, error) {
-	return s.repo.ListGroups(ctx)
+func (s *GroupService) ListGroups(ctx context.Context, tournamentID string) ([]model.Group, error) {
+	return s.repo.ListGroups(ctx, tournamentID)
 }
 
 func (s *GroupService) SetGroupPlayers(ctx context.Context, groupID string, playerIDs []string) error {
@@ -93,7 +90,7 @@ func (s *GroupService) SetGroupPlayers(ctx context.Context, groupID string, play
 		return fmt.Errorf("group player limit exceeded: max %d", g.MaxPlayers)
 	}
 
-	if err := s.repo.ValidatePlayersLevelAndGender(ctx, playerIDs, g.TennisLevel, g.Gender); err != nil {
+	if err := s.repo.ValidatePlayersLevelAndGender(ctx, playerIDs, g.Gender); err != nil {
 		return err
 	}
 
@@ -190,4 +187,11 @@ func (s *GroupService) DeleteGroup(ctx context.Context, groupID string) error {
 	}
 
 	return s.repo.DeleteGroup(ctx, groupID)
+}
+
+func (s *GroupService) GetTournamentQualifiers(ctx context.Context, tournamentID string) ([]model.GroupStanding, error) {
+	if strings.TrimSpace(tournamentID) == "" {
+		return nil, fmt.Errorf("tournament id is required")
+	}
+	return s.repo.GetTournamentQualifiers(ctx, tournamentID)
 }

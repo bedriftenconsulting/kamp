@@ -19,8 +19,8 @@ func (s *PlayerService) CreatePlayer(ctx context.Context, p *model.Player) error
 	return s.repo.Create(ctx, p)
 }
 
-func (s *PlayerService) GetPlayers(ctx context.Context) ([]model.Player, error) {
-	return s.repo.GetAll(ctx)
+func (s *PlayerService) GetPlayers(ctx context.Context, tournamentID string) ([]model.Player, error) {
+	return s.repo.GetAll(ctx, tournamentID)
 }
 
 func (s *PlayerService) UpdatePlayer(ctx context.Context, p *model.Player) error {

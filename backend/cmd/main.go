@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -159,6 +160,7 @@ func main() {
 		api.GET("/tournaments", tournamentHdl.GetTournaments)
 		api.PUT("/tournaments/:id", tournamentHdl.UpdateTournament)
 		api.DELETE("/tournaments/:id", tournamentHdl.DeleteTournament)
+		api.POST("/tournaments/:id/bracket", matchHdl.GenerateBracket)
 
 		// Player
 		api.POST("/players", playerHdl.CreatePlayer)
@@ -180,6 +182,7 @@ func main() {
 		// Groups (Round Robin)
 		api.POST("/groups", groupHdl.CreateGroup)
 		api.GET("/groups", groupHdl.GetGroups)
+		api.GET("/groups/qualifiers", groupHdl.GetTournamentQualifiers)
 		api.PUT("/groups/:id/players", groupHdl.SetPlayers)
 		api.GET("/groups/:id/players", groupHdl.GetGroupPlayers)
 		api.POST("/groups/:id/lock", groupHdl.LockGroup)
@@ -191,6 +194,32 @@ func main() {
 
 	// ✅ Start WebSocket listener
 	go realtime.HandleMessages()
+
+	// ✅ Start Tournament & Cleanup Background Task
+	go func() {
+		cleanupTicker := time.NewTicker(24 * time.Hour)
+		expiryTicker := time.NewTicker(1 * time.Hour)
+
+		// Initial run on startup
+		log.Println("🧹 First tournament cleanup & expiry run...")
+		_ = tournamentRepo.CleanupOldTournaments(context.Background())
+		_ = tournamentRepo.UpdateExpiredTournaments(context.Background())
+
+		for {
+			select {
+			case <-cleanupTicker.C:
+				log.Println("🧹 Periodic tournament cleanup run...")
+				if err := tournamentRepo.CleanupOldTournaments(context.Background()); err != nil {
+					log.Printf("❌ Cleanup error: %v", err)
+				}
+			case <-expiryTicker.C:
+				log.Println("⏲️  Periodic tournament expiry check...")
+				if err := tournamentRepo.UpdateExpiredTournaments(context.Background()); err != nil {
+					log.Printf("❌ Expiry check error: %v", err)
+				}
+			}
+		}
+	}()
 
 	// Start server
 	r.Run(":" + cfg.Port)

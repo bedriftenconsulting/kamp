@@ -62,7 +62,8 @@ func (h *MatchHandler) CreateMatch(c *gin.Context) {
 }
 
 func (h *MatchHandler) GetMatches(c *gin.Context) {
-	matches, err := h.service.GetMatches(c)
+	tournamentID := c.Query("tournament_id")
+	matches, err := h.service.GetMatches(c, tournamentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -93,6 +94,11 @@ func (h *MatchHandler) UpdateMatch(c *gin.Context) {
 		return
 	}
 	match.ID = matchID
+
+	if existingMatch, err := h.service.GetMatchByID(c, matchID); err == nil && existingMatch != nil {
+		match.NextMatchID = existingMatch.NextMatchID
+		match.BracketPosition = existingMatch.BracketPosition
+	}
 
 	if err := h.service.UpdateMatch(c, match); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -145,6 +151,38 @@ func (h *MatchHandler) CompleteMatch(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "match completed"})
+}
+
+type generateBracketRequest struct {
+	Size      int      `json:"size" binding:"required"`
+	PlayerIDs []string `json:"player_ids" binding:"required"`
+}
+
+func (h *MatchHandler) GenerateBracket(c *gin.Context) {
+	tournamentID := c.Param("id")
+	if strings.TrimSpace(tournamentID) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tournament id is required"})
+		return
+	}
+
+	var input generateBracketRequest
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if len(input.PlayerIDs) != input.Size {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "length of player_ids must match size"})
+		return
+	}
+
+	err := h.service.GenerateBracket(c, tournamentID, input.PlayerIDs)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"message": "bracket generated successfully"})
 }
 
 func buildMatchFromRequest(input matchRequest) (*model.Match, error) {

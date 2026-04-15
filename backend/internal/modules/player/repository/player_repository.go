@@ -10,7 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
+//store db connection
 type PlayerRepository struct {
 	db *pgxpool.Pool
 }
@@ -20,6 +20,7 @@ func NewPlayerRepository(db *pgxpool.Pool) *PlayerRepository {
 }
 
 func (r *PlayerRepository) Create(ctx context.Context, p *model.Player) error {
+	//Check if player ID is empty
 	if strings.TrimSpace(p.ID) == "" {
 		query := `
 		INSERT INTO players (first_name, last_name, date_of_birth, nationality, tournament_id, tournament_name, gender, age, tennis_level, ranking, bio, profile_image_url)
@@ -66,7 +67,7 @@ func (r *PlayerRepository) Create(ctx context.Context, p *model.Player) error {
 	).Scan(&p.CreatedAt, &p.UpdatedAt)
 }
 
-func (r *PlayerRepository) GetAll(ctx context.Context) ([]model.Player, error) {
+func (r *PlayerRepository) GetAll(ctx context.Context, tournamentID string) ([]model.Player, error) {
 	query := `
 	SELECT
 		id,
@@ -85,10 +86,15 @@ func (r *PlayerRepository) GetAll(ctx context.Context) ([]model.Player, error) {
 		created_at,
 		updated_at
 	FROM players
-	ORDER BY ranking ASC
 	`
+	var args []interface{}
+	if tournamentID != "" {
+		query += ` WHERE tournament_id = $1 `
+		args = append(args, tournamentID)
+	}
+	query += ` ORDER BY ranking ASC `
 
-	rows, err := r.db.Query(ctx, query)
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
