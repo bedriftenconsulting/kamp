@@ -37,6 +37,10 @@ func (s *MatchService) GetMatches(ctx context.Context, tournamentID string) ([]m
 	return s.repo.GetAll(ctx, tournamentID)
 }
 
+func (s *MatchService) GetMatchByID(ctx context.Context, matchID string) (*model.Match, error) {
+	return s.repo.GetByID(ctx, matchID)
+}
+
 func (s *MatchService) UpdateMatch(ctx context.Context, m *model.Match) error {
 	if m.Status == "" {
 		m.Status = "scheduled"

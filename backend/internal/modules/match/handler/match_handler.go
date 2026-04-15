@@ -95,6 +95,11 @@ func (h *MatchHandler) UpdateMatch(c *gin.Context) {
 	}
 	match.ID = matchID
 
+	if existingMatch, err := h.service.GetMatchByID(c, matchID); err == nil && existingMatch != nil {
+		match.NextMatchID = existingMatch.NextMatchID
+		match.BracketPosition = existingMatch.BracketPosition
+	}
+
 	if err := h.service.UpdateMatch(c, match); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

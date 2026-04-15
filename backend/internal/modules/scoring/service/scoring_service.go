@@ -146,7 +146,23 @@ func (s *ScoringService) AddPoint(ctx context.Context, matchID string, player in
 			if winnerNum == 2 {
 				winnerID = p2ID
 			}
-			_ = s.matchRepo.FinishMatch(ctx, matchID, winnerID, s1, s2)
+			err = s.matchRepo.FinishMatch(ctx, matchID, winnerID, s1, s2)
+			if err == nil {
+				// Auto-advance bracket logic
+				currentMatch, err := s.matchRepo.GetByID(ctx, matchID)
+				if err == nil && currentMatch.NextMatchID != nil && currentMatch.BracketPosition != nil {
+					nextMatch, err := s.matchRepo.GetByID(ctx, *currentMatch.NextMatchID)
+					if err == nil && nextMatch != nil {
+						// Slot into Player 1 or Player 2 depending on current match's position.
+						if *currentMatch.BracketPosition%2 == 0 {
+							nextMatch.Player1ID = &winnerID
+						} else {
+							nextMatch.Player2ID = &winnerID
+						}
+						s.matchRepo.Update(ctx, nextMatch)
+					}
+				}
+			}
 		}
 	}
 
