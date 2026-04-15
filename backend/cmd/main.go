@@ -195,19 +195,28 @@ func main() {
 	// ✅ Start WebSocket listener
 	go realtime.HandleMessages()
 
-	// ✅ Start Tournament Cleanup Background Task (every 24h)
+	// ✅ Start Tournament & Cleanup Background Task
 	go func() {
-		ticker := time.NewTicker(24 * time.Hour)
-		// Run once immediately on startup
-		log.Println("🧹 First tournament cleanup run...")
-		if err := tournamentRepo.CleanupOldTournaments(context.Background()); err != nil {
-			log.Printf("❌ Cleanup error: %v", err)
-		}
+		cleanupTicker := time.NewTicker(24 * time.Hour)
+		expiryTicker := time.NewTicker(1 * time.Hour)
 
-		for range ticker.C {
-			log.Println("🧹 Periodic tournament cleanup run...")
-			if err := tournamentRepo.CleanupOldTournaments(context.Background()); err != nil {
-				log.Printf("❌ Cleanup error: %v", err)
+		// Initial run on startup
+		log.Println("🧹 First tournament cleanup & expiry run...")
+		_ = tournamentRepo.CleanupOldTournaments(context.Background())
+		_ = tournamentRepo.UpdateExpiredTournaments(context.Background())
+
+		for {
+			select {
+			case <-cleanupTicker.C:
+				log.Println("🧹 Periodic tournament cleanup run...")
+				if err := tournamentRepo.CleanupOldTournaments(context.Background()); err != nil {
+					log.Printf("❌ Cleanup error: %v", err)
+				}
+			case <-expiryTicker.C:
+				log.Println("⏲️  Periodic tournament expiry check...")
+				if err := tournamentRepo.UpdateExpiredTournaments(context.Background()); err != nil {
+					log.Printf("❌ Expiry check error: %v", err)
+				}
 			}
 		}
 	}()

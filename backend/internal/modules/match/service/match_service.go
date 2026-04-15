@@ -75,14 +75,15 @@ func (s *MatchService) CompleteMatch(ctx context.Context, matchID string, input 
 	// Auto-advance bracket logic
 	if winnerID != nil {
 		currentMatch, err := s.repo.GetByID(ctx, matchID)
-		if err == nil && currentMatch.NextMatchID != nil {
+		if err == nil && currentMatch.NextMatchID != nil && currentMatch.BracketPosition != nil {
 			nextMatch, err := s.repo.GetByID(ctx, *currentMatch.NextMatchID)
 			if err == nil && nextMatch != nil {
-				// Slot into Player 1 or Player 2 depending on which is empty, or based on position.
-				// Simplest logic: if player1 is nil or empty, set player1. Else set player2.
-				if nextMatch.Player1ID == nil || *nextMatch.Player1ID == "" {
+				// Slot into Player 1 or Player 2 depending on current match's position.
+				// Even position (0, 2, 4...) -> Player 1 of next match
+				// Odd position (1, 3, 5...) -> Player 2 of next match
+				if *currentMatch.BracketPosition%2 == 0 {
 					nextMatch.Player1ID = winnerID
-				} else if (*nextMatch.Player1ID != *winnerID) && (nextMatch.Player2ID == nil || *nextMatch.Player2ID == "") {
+				} else {
 					nextMatch.Player2ID = winnerID
 				}
 				s.repo.Update(ctx, nextMatch)

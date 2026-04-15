@@ -158,6 +158,12 @@ func (r *TournamentRepository) CleanupOldTournaments(ctx context.Context) error 
 	return err
 }
 
+func (r *TournamentRepository) UpdateExpiredTournaments(ctx context.Context) error {
+	query := `UPDATE tournaments SET status = 'completed', updated_at = NOW() WHERE status != 'completed' AND end_date < NOW()`
+	_, err := r.db.Exec(ctx, query)
+	return err
+}
+
 // nullIfEmpty converts an empty string to nil so PostgreSQL stores NULL
 // instead of an empty string, keeping the column semantics clean.
 func nullIfEmpty(s string) interface{} {
