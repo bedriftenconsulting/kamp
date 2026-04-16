@@ -86,9 +86,8 @@ func (s *GroupService) SetGroupPlayers(ctx context.Context, groupID string, play
 		return fmt.Errorf("group is locked")
 	}
 
-	if len(playerIDs) > g.MaxPlayers {
-		return fmt.Errorf("group player limit exceeded: max %d", g.MaxPlayers)
-	}
+	// Allowed to accommodate any number of players regardless of max_players
+	// if len(playerIDs) > g.MaxPlayers { ... }
 
 	if err := s.repo.ValidatePlayersLevelAndGender(ctx, playerIDs, g.Gender); err != nil {
 		return err
@@ -108,15 +107,15 @@ func (s *GroupService) LockGroup(ctx context.Context, groupID string) error {
 	if g.IsLocked {
 		return nil
 	}
-	if g.PlayersCount != g.MaxPlayers {
-		return fmt.Errorf("group must have exactly %d players before locking", g.MaxPlayers)
+	if g.PlayersCount < 2 {
+		return fmt.Errorf("group must have at least 2 players before locking")
 	}
 
 	playerIDs, err := s.repo.GetGroupPlayerIDs(ctx, groupID)
 	if err != nil {
 		return err
 	}
-	if len(playerIDs) != g.MaxPlayers {
+	if len(playerIDs) != g.PlayersCount {
 		return fmt.Errorf("group player assignments mismatch")
 	}
 
