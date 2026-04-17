@@ -39,6 +39,19 @@ export const api = {
     return res.json();
   },
 
+  updateMatch: async (matchId: string, payload: any) => {
+    const res = await fetch(`${BASE_URL}/matches/${matchId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to update match");
+    }
+    return res.json();
+  },
+
   addPoint: async (matchId: string, player: number) => {
     const res = await fetch(`${BASE_URL}/matches/${matchId}/point`, {
       method: "POST",
@@ -47,6 +60,61 @@ export const api = {
       },
       body: JSON.stringify({ player }),
     });
+    return res.json();
+  },
+
+  createTeam: async (payload: { tournament_id: string; player1_id: string; player2_id: string; player1_name: string; player2_name: string; gender: string; tennis_level: string }) => {
+    const res = await fetch(`${BASE_URL}/teams`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to create team");
+    }
+    return res.json();
+  },
+
+  getTournamentRules: async (tournamentId: string) => {
+    const res = await fetch(`${BASE_URL}/tournaments/${tournamentId}/rules`);
+    if (!res.ok) return null;
+    return res.json();
+  },
+
+  updateTournamentRules: async (tournamentId: string, payload: any) => {
+    const res = await fetch(`${BASE_URL}/tournaments/${tournamentId}/rules`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to update rules");
+    }
+    return res.json();
+  },
+
+  getTournamentQualifiers: async (tournamentId: string) => {
+    const res = await fetch(`${BASE_URL}/groups/qualifiers?tournament_id=${tournamentId}`);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  generateBracket: async (tournamentId: string, payload: { size: number; player_ids: string[] }) => {
+    const res = await fetch(`${BASE_URL}/tournaments/${tournamentId}/bracket`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to generate bracket");
+    }
     return res.json();
   },
 };

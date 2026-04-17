@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   Menu,
   X,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +34,8 @@ const tabs = [
   { id: "groups", label: "Groups", icon: Blocks },
   { id: "matches", label: "Matches", icon: Calendar },
   { id: "tournament", label: "Tournament", icon: Trophy },
+  { id: "rules", label: "Rules & Settings", icon: Settings },
+  { id: "playoffs", label: "Playoffs", icon: Zap },
 ];
 
 type Player = {
@@ -51,6 +54,7 @@ type Player = {
   profile_image_url: string;
   name: string;
   country: string;
+  is_team?: boolean;
 };
 
 type Match = {
@@ -106,6 +110,13 @@ type PlayerForm = {
   profile_image_url: string;
 };
 
+type TeamForm = {
+  player1_id: string;
+  player2_id: string;
+  gender: string;
+  tennis_level: string;
+};
+
 type MatchForm = {
   id: string;
   tournament_id: string;
@@ -127,6 +138,15 @@ type TournamentForm = {
   surface: string;
   banner_image_url: string;
   accent_color: string;
+};
+
+type TournamentRules = {
+  tournament_id: string;
+  scoring_format: string;
+  max_points: number;
+  tie_break_trigger: number;
+  tie_break_max_points: number;
+  win_by_two: boolean;
 };
 
 type Group = {
@@ -233,6 +253,13 @@ const emptyPlayerForm: PlayerForm = {
   profile_image_url: "",
 };
 
+const emptyTeamForm: TeamForm = {
+  player1_id: "",
+  player2_id: "",
+  gender: "Men",
+  tennis_level: "Intermediate",
+};
+
 const emptyMatchForm: MatchForm = {
   id: "",
   tournament_id: "",
@@ -264,6 +291,15 @@ const emptyTournamentForm: TournamentForm = {
   surface: "",
   banner_image_url: "",
   accent_color: "#e91e8c",
+};
+
+const emptyTournamentRules: TournamentRules = {
+  tournament_id: "",
+  scoring_format: "tennis",
+  max_points: 11,
+  tie_break_trigger: 10,
+  tie_break_max_points: 5,
+  win_by_two: true,
 };
 
 const emptyGroupForm: GroupForm = {
@@ -346,6 +382,10 @@ export default function AdminDashboard() {
   const [isSavingPlayer, setIsSavingPlayer] = useState(false);
   const [deletingPlayerId, setDeletingPlayerId] = useState<string | null>(null);
 
+  const [isTeamDialogOpen, setIsTeamDialogOpen] = useState(false);
+  const [teamForm, setTeamForm] = useState<TeamForm>(emptyTeamForm);
+  const [isSavingTeam, setIsSavingTeam] = useState(false);
+
   const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
   const [isEditingMatch, setIsEditingMatch] = useState(false);
   const [matchForm, setMatchForm] = useState<MatchForm>(emptyMatchForm);
@@ -365,6 +405,9 @@ export default function AdminDashboard() {
   const [deletingTournamentId, setDeletingTournamentId] = useState<
     string | null
   >(null);
+
+  const [tournamentRules, setTournamentRules] = useState<TournamentRules>(emptyTournamentRules);
+  const [isSavingRules, setIsSavingRules] = useState(false);
 
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
   const [groupForm, setGroupForm] = useState<GroupForm>(emptyGroupForm);
@@ -412,11 +455,9 @@ export default function AdminDashboard() {
   const [isGeneratingBracket, setIsGeneratingBracket] = useState(false);
 
   const [playoffQualifiers, setPlayoffQualifiers] = useState<any[]>([]);
-  const [selectedPlayoffGroupId, setSelectedPlayoffGroupId] =
-    useState<string>("");
-  const [playoffGroupStandings, setPlayoffGroupStandings] = useState<
-    GroupStanding[]
-  >([]);
+  const [selectedPlayoffGroupId, setSelectedPlayoffGroupId] = useState<string>("");
+  const [playoffGroupStandings, setPlayoffGroupStandings] = useState<GroupStanding[]>([]);
+  const [playoffView, setPlayoffView] = useState<"setup" | "bracket">("setup");
 
   useEffect(() => {
     setBracketPlayers((prev) => {
@@ -469,9 +510,8 @@ export default function AdminDashboard() {
         const err = await parseResponseBody(res);
         throw new Error(err?.error || "Failed to generate bracket");
       }
-      alert("Bracket generated successfully!");
-      fetchData();
-      setActiveTab("matches");
+      await fetchData();
+      setPlayoffView("bracket");
     } catch (e: any) {
       alert(e.message);
     } finally {
@@ -569,6 +609,7 @@ export default function AdminDashboard() {
         profile_image_url: p.profile_image_url || p.profileImageUrl || "",
         name: `${p.first_name || p.firstName || ""} ${p.last_name || p.lastName || ""}`.trim(),
         country: p.nationality || p.country || "",
+        is_team: Boolean(p.is_team),
       }));
 
       const formattedTournaments: Tournament[] = tournamentList.map(
@@ -600,6 +641,33 @@ export default function AdminDashboard() {
       setTournaments(formattedTournaments);
       setGroups(formattedGroups);
       setMatchPage(1);
+
+      if (tId && tId !== "all") {
+        fetch(`${API_V1_URL}/tournaments/${tId}/rules`)
+          .then((res) => {
+            if (res.ok) return res.json();
+            throw new Error("Failed");
+          })
+          .then((rules) => {
+            if (rules) setTournamentRules(rules);
+          })
+          .catch(() => {
+            setTournamentRules({ ...emptyTournamentRules, tournament_id: tId });
+          });
+
+        fetch(`${API_V1_URL}/groups/qualifiers?tournament_id=${tId}`)
+          .then((res) => {
+            if (res.ok) return res.json();
+            throw new Error("Failed");
+          })
+          .then((qualifiers) => {
+            setPlayoffQualifiers(qualifiers || []);
+          })
+          .catch(() => {
+            setPlayoffQualifiers([]);
+          });
+      }
+
     } catch (error) {
       console.error("Error loading admin data:", error);
     }
@@ -632,6 +700,17 @@ export default function AdminDashboard() {
       console.error("Failed to auto-load group details:", error);
     });
   }, [activeTab, groups, selectedGroupId]);
+
+  useEffect(() => {
+    if (!selectedPlayoffGroupId) {
+      setPlayoffGroupStandings([]);
+      return;
+    }
+    fetch(`${API_V1_URL}/groups/${selectedPlayoffGroupId}/standings`)
+      .then(res => res.json())
+      .then(data => setPlayoffGroupStandings(data || []))
+      .catch(() => setPlayoffGroupStandings([]));
+  }, [selectedPlayoffGroupId]);
 
   const finalizedMatches = useMemo(
     () => matches.filter((m) => m.status === "completed"),
@@ -723,6 +802,56 @@ export default function AdminDashboard() {
       alert(error?.message || "Failed to save player");
     } finally {
       setIsSavingPlayer(false);
+    }
+  };
+
+  const handleOpenAddTeam = () => {
+    setTeamForm({ ...emptyTeamForm });
+    setIsTeamDialogOpen(true);
+  };
+
+  const handleSaveTeam = async () => {
+    if (!teamForm.player1_id || !teamForm.player2_id) {
+       alert("Please select both players");
+       return;
+    }
+    if (teamForm.player1_id === teamForm.player2_id) {
+       alert("A player cannot be paired with themselves");
+       return;
+    }
+    setIsSavingTeam(true);
+
+    try {
+      const p1 = players.find(p => p.id === teamForm.player1_id);
+      const p2 = players.find(p => p.id === teamForm.player2_id);
+      
+      const res = await fetch(`${API_V1_URL}/teams`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tournament_id: globalTournamentId,
+          player1_id: teamForm.player1_id,
+          player2_id: teamForm.player2_id,
+          player1_name: p1?.name || "",
+          player2_name: p2?.name || "",
+          gender: teamForm.gender,
+          tennis_level: teamForm.tennis_level
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to save team");
+      }
+
+      setIsTeamDialogOpen(false);
+      setTeamForm(emptyTeamForm);
+      await fetchData();
+      alert("Team created successfully! Teams act exactly like players but are managed independently.");
+    } catch(e: any) {
+      alert(e.message || "Failed to save team.");
+    } finally {
+      setIsSavingTeam(false);
     }
   };
 
@@ -1014,6 +1143,31 @@ export default function AdminDashboard() {
       alert(error?.message || "Failed to delete tournament");
     } finally {
       setDeletingTournamentId(null);
+    }
+  };
+
+  const handleSaveRules = async () => {
+    if (!globalTournamentId || globalTournamentId === "all") {
+       alert("Please select a specific tournament first!");
+       return;
+    }
+    setIsSavingRules(true);
+    try {
+      const res = await fetch(`${API_V1_URL}/tournaments/${globalTournamentId}/rules`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(tournamentRules),
+      });
+      if (!res.ok) {
+         const err = await res.json().catch(() => ({}));
+         throw new Error(err.error || "Failed to update rules.");
+      }
+      alert("Tournament rules successfully updated!");
+      await fetchData();
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setIsSavingRules(false);
     }
   };
 
@@ -1648,11 +1802,17 @@ export default function AdminDashboard() {
         {activeTab === "players" && (
           <div>
             <div className="mb-6 flex items-center justify-between">
-              <h1 className="text-2xl font-black">Players</h1>
-              <Button onClick={handleOpenAddPlayer} className="gap-2">
-                <Plus size={16} />
-                Add Player
-              </Button>
+              <h1 className="text-2xl font-black">Players & Teams</h1>
+              <div className="flex items-center gap-2">
+                <Button onClick={handleOpenAddTeam} className="gap-2" variant="outline">
+                  <Plus size={16} />
+                  Add Team
+                </Button>
+                <Button onClick={handleOpenAddPlayer} className="gap-2">
+                  <Plus size={16} />
+                  Add Player
+                </Button>
+              </div>
             </div>
 
             <div className="bg-card border rounded-md overflow-hidden">
@@ -1812,22 +1972,22 @@ export default function AdminDashboard() {
                     <div className="max-h-56 overflow-auto rounded-md border p-3 space-y-2">
                       {players
                         .filter((p) => {
-                          const isMixed = (selectedGroup.group_type || "")
-                            .trim()
-                            .toLowerCase()
-                            .includes("mixed");
+                          const gt = (selectedGroup.group_type || "").trim().toLowerCase();
+                          const isMixed = gt.includes("mixed");
+                          const isDoubles = gt.includes("double");
+                          
+                          // For Doubles/Mixed Groups, only display Teams. For Singles, only display Individuals.
+                          if (isDoubles && !p.is_team) return false;
+                          if (!isDoubles && p.is_team) return false;
+
                           const pg = normalizeGender(p.gender);
                           const sg = normalizeGender(selectedGroup.gender);
-                          const genderMatches =
-                            isMixed || (sg !== "" && pg === sg);
+                          const genderMatches = isMixed || (sg !== "" && pg === sg);
                           return genderMatches;
                         })
                         .map((p) => {
                           const checked = groupPlayerSelections.includes(p.id);
-                          const disableUnchecked =
-                            !checked &&
-                            groupPlayerSelections.length >=
-                              selectedGroup.max_players;
+                          const disableUnchecked = false; // Groups can now accommodate any number of players
 
                           return (
                             <label
@@ -2093,138 +2253,360 @@ export default function AdminDashboard() {
         )}
 
         {/* =========================================================
-            PLAYOFFS (BRACKET GENERATOR)
+            RULES & SETTINGS
             ========================================================= */}
-        {activeTab === "playoffs" && (
+        {activeTab === "rules" && (
           <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
-            <div className="bg-card w-full p-6 rounded-xl border shadow-sm">
-              <div className="mb-6 pb-4 border-b">
-                <h2 className="text-xl font-bold mb-2">
-                  Playoff Bracket Generator
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Select a tournament, choose the number of players, and assign
-                  players to the first-round match slots. The system will
-                  automatically create empty placeholders for future rounds like
-                  the Semifinal and Final.
-                </p>
+            <div className="flex items-center justify-between mb-6">
+              <h1 className="text-2xl font-black">Rules & Settings</h1>
+            </div>
+
+            {!globalTournamentId || globalTournamentId === "all" ? (
+              <div className="bg-card border rounded-md p-10 text-center text-muted-foreground">
+                Please select a specific tournament from the top right dropdown first.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-6">
+                  <div className="bg-card p-6 rounded-xl border">
+                    <h2 className="text-xl font-bold mb-4">Match Scoring Rules</h2>
+                    
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Scoring Format</Label>
+                        <select
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          value={tournamentRules.scoring_format}
+                          onChange={(e) => setTournamentRules({ ...tournamentRules, scoring_format: e.target.value })}
+                        >
+                          <option value="tennis">Standard Tennis (15, 30, 40, Adv, Games, Sets)</option>
+                          <option value="numeric">Numeric Points (1, 2, 3... - e.g. Table Tennis)</option>
+                        </select>
+                      </div>
+
+                      {tournamentRules.scoring_format === "numeric" && (
+                        <>
+                          <div className="space-y-2">
+                            <Label>Match Win Condition (Target Points)</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={tournamentRules.max_points}
+                              onChange={(e) => setTournamentRules({ ...tournamentRules, max_points: parseInt(e.target.value) || 11 })}
+                            />
+                            <p className="text-xs text-muted-foreground">The points needed to win the match (or game)</p>
+                          </div>
+
+                          <div className="space-y-2 flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id="winByTwo"
+                              className="h-4 w-4"
+                              checked={tournamentRules.win_by_two}
+                              onChange={(e) => setTournamentRules({ ...tournamentRules, win_by_two: e.target.checked })}
+                            />
+                            <Label htmlFor="winByTwo">Must Win By Two Points</Label>
+                          </div>
+                        </>
+                      )}
+
+                      {/* Display Tie Break options for tennis format */}
+                      {tournamentRules.scoring_format === "tennis" && (
+                        <>
+                          <div className="space-y-2">
+                            <Label>Tie Break Trigger (Games)</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              value={tournamentRules.tie_break_trigger}
+                              onChange={(e) => setTournamentRules({ ...tournamentRules, tie_break_trigger: parseInt(e.target.value) || 10 })}
+                            />
+                            <p className="text-xs text-muted-foreground">The game score that triggers a tiebreak (e.g. 6-6).</p>
+                          </div>
+                        </>
+                      )}
+
+                      <Button onClick={handleSaveRules} disabled={isSavingRules} className="w-full mt-4">
+                        {isSavingRules ? "Saving..." : "Save Match Rules"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="bg-card p-6 rounded-xl border bg-muted/20">
+                    <h3 className="font-bold mb-2">Quick Templates</h3>
+                    <p className="text-sm text-muted-foreground mb-4">Click to apply common configurations instantly.</p>
+                    <div className="flex flex-col gap-3">
+                      <Button variant="outline" className="justify-start" onClick={() => setTournamentRules({ ...tournamentRules, scoring_format: "tennis", tie_break_trigger: 6, win_by_two: true })}>
+                        🎾 Standard Tennis Rules
+                      </Button>
+                      <Button variant="outline" className="justify-start" onClick={() => setTournamentRules({ ...tournamentRules, scoring_format: "numeric", max_points: 11, win_by_two: true })}>
+                        🏓 Standard Ping Pong (11 pts / Win by 2)
+                      </Button>
+                      <Button variant="outline" className="justify-start" onClick={() => setTournamentRules({ ...tournamentRules, scoring_format: "numeric", max_points: 9, win_by_two: false })}>
+                        ⚡ Sudden Death 9 Points
+                      </Button>
+                      <Button variant="outline" className="justify-start" onClick={() => setTournamentRules({ ...tournamentRules, scoring_format: "numeric", max_points: 21, win_by_two: true })}>
+                        🏸 Doubles Badminton (21 pts)
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* =========================================================
+            PLAYOFFS
+            ========================================================= */}
+        {activeTab === "playoffs" && (() => {
+          // Bracket matches = those with a bracket_position set for this tournament
+          const bracketMatches = matches.filter(
+            (m) => m.bracket_position !== null && m.bracket_position !== undefined
+          );
+
+          // Group bracket matches by round name for display
+          const roundOrder = ["Round of 64", "Round of 32", "Round of 16", "Quarterfinal", "Semifinal", "Final"];
+          const matchesByRound: Record<string, typeof bracketMatches> = {};
+          bracketMatches.forEach((m) => {
+            if (!matchesByRound[m.round]) matchesByRound[m.round] = [];
+            matchesByRound[m.round].push(m);
+          });
+          const sortedRounds = roundOrder.filter((r) => matchesByRound[r]);
+          // stage label preview
+          const stagePreview: Record<number, string[]> = {
+            2: ["Final"],
+            4: ["Semifinals", "Final"],
+            8: ["Quarterfinals", "Semifinals", "Final"],
+            16: ["Round of 16", "Quarterfinals", "Semifinals", "Final"],
+            32: ["Round of 32", "Round of 16", "Quarterfinals", "Semifinals", "Final"],
+          };
+
+          return (
+            <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-2xl font-black">Playoff Bracket</h1>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {bracketMatches.length > 0
+                      ? `${bracketMatches.length} bracket matches generated. Winners auto-advance to the next round.`
+                      : "No bracket generated yet. Use the Setup panel below to create one."}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant={playoffView === "setup" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setPlayoffView("setup")}
+                  >
+                    ⚙️ Setup
+                  </Button>
+                  <Button
+                    variant={playoffView === "bracket" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setPlayoffView("bracket")}
+                    disabled={bracketMatches.length === 0}
+                  >
+                    🏆 View Bracket
+                  </Button>
+                </div>
               </div>
 
               {!globalTournamentId ? (
-                <div className="p-8 text-center text-muted-foreground border-2 border-dashed rounded-xl">
+                <div className="p-12 text-center text-muted-foreground border-2 border-dashed rounded-xl">
                   Please select a tournament from the top right dropdown first.
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  {/* Left: Bracket Generator */}
-                  <div className="space-y-8">
-                    <div className="space-y-3">
-                      <Label className="text-base font-semibold">
-                        1. Select Bracket Size (Powers of 2)
-                      </Label>
-                      <select
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        value={bracketSize}
-                        onChange={(e) => setBracketSize(Number(e.target.value))}
-                      >
-                        {[2, 4, 8, 16, 32, 64].map((size) => (
-                          <option key={size} value={size}>
-                            {size} Players
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+              ) : playoffView === "setup" ? (
+                /* ── SETUP VIEW ── */
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                  {/* Left: Builder */}
+                  <div className="bg-card p-6 rounded-xl border space-y-6">
+                    <h2 className="text-lg font-bold">Build The Bracket</h2>
 
-                    <div className="space-y-3">
-                      <Label className="text-base font-semibold">
-                        2. Seed First Round
-                      </Label>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Matchups are created sequentially. Only qualified
-                        players are listed below.
+                    {/* Stage preview banner */}
+                    <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+                      <p className="text-xs font-bold uppercase tracking-wider text-primary mb-2">
+                        Stages for {bracketSize} players
                       </p>
-                      <div className="grid grid-cols-1 gap-y-3 bg-muted/20 p-4 rounded-xl border">
-                        {Array.from({ length: bracketSize }).map((_, idx) => (
-                          <div
-                            key={`seed-${idx}`}
-                            className={`flex items-center gap-3 ${idx % 2 !== 0 && idx !== bracketSize - 1 ? "pb-3 border-b border-border border-dashed" : ""}`}
+                      <div className="flex flex-wrap gap-2">
+                        {(stagePreview[bracketSize] || []).map((stage, i) => (
+                          <span
+                            key={stage}
+                            className={`px-3 py-1 rounded-full text-xs font-semibold border ${
+                              i === (stagePreview[bracketSize] || []).length - 1
+                                ? "bg-yellow-500/20 text-yellow-500 border-yellow-500/30"
+                                : "bg-muted text-muted-foreground border-border"
+                            }`}
                           >
-                            <span className="w-8 text-sm font-bold text-muted-foreground text-right">
-                              {idx + 1}.
-                            </span>
-                            <select
-                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                              value={bracketPlayers[idx] || ""}
-                              onChange={(e) => {
-                                const newArr = [...bracketPlayers];
-                                newArr[idx] = e.target.value;
-                                setBracketPlayers(newArr);
-                              }}
-                            >
-                              <option value="">
-                                Select qualified player...
-                              </option>
-                              {playoffQualifiers.map((p) => (
-                                <option key={p.player_id} value={p.player_id}>
-                                  {p.player_name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
+                            {stage}
+                          </span>
                         ))}
                       </div>
                     </div>
 
-                    <div className="pt-4 flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">
-                        {playoffQualifiers.length} Qualified Candidates
-                      </span>
-                      <Button
-                        size="lg"
-                        className="gap-2"
-                        onClick={handleGenerateBracket}
-                        disabled={isGeneratingBracket}
-                      >
-                        {isGeneratingBracket ? (
-                          "Generating..."
-                        ) : (
-                          <>
-                            <Trophy size={18} /> Generate Bracket
-                          </>
-                        )}
-                      </Button>
+                    <div className="space-y-3">
+                      <Label className="text-sm font-semibold">Bracket Size</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[2, 4, 8, 16, 32].map((size) => (
+                          <button
+                            key={size}
+                            onClick={() => setBracketSize(size)}
+                            className={`py-2 px-3 rounded-lg text-sm font-bold border transition-all ${
+                              bracketSize === size
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-card border-border hover:border-primary/50 text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            {size}P
+                          </button>
+                        ))}
+                      </div>
                     </div>
+
+                    <div className="space-y-3">
+                      <Label className="text-sm font-semibold">
+                        Seed Players into First Round
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Pair consecutive seeds as matchups. Slot 1 vs 2, Slot 3 vs 4, etc.
+                      </p>
+                      <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                        {Array.from({ length: bracketSize }).map((_, idx) => {
+                          const matchNum = Math.floor(idx / 2) + 1;
+                          const isFirstOfPair = idx % 2 === 0;
+                          return (
+                            <div key={`seed-${idx}`}>
+                              {isFirstOfPair && (
+                                <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mt-3 mb-1">
+                                  Match {matchNum}
+                                </div>
+                              )}
+                              <div className="flex items-center gap-3 bg-muted/30 rounded-lg px-3 py-2">
+                                <span
+                                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                                    isFirstOfPair
+                                      ? "bg-blue-500/20 text-blue-400"
+                                      : "bg-orange-500/20 text-orange-400"
+                                  }`}
+                                >
+                                  {idx + 1}
+                                </span>
+                                <select
+                                  className="flex h-9 w-full rounded-md border border-input bg-background px-2 py-1 text-sm"
+                                  value={bracketPlayers[idx] || ""}
+                                  onChange={(e) => {
+                                    const newArr = [...bracketPlayers];
+                                    newArr[idx] = e.target.value;
+                                    setBracketPlayers(newArr);
+                                  }}
+                                >
+                                  <option value="">Select player…</option>
+                                  {playoffQualifiers.length > 0
+                                    ? playoffQualifiers.map((p) => (
+                                        <option key={p.player_id} value={p.player_id}>
+                                          {p.player_name}
+                                        </option>
+                                      ))
+                                    : players
+                                        .filter((p) => !p.is_team || true)
+                                        .map((p) => (
+                                          <option key={p.id} value={p.id}>
+                                            {p.name || `${p.first_name} ${p.last_name}`.trim()}
+                                          </option>
+                                        ))}
+                                </select>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Warning if existing bracket */}
+                    {bracketMatches.length > 0 && (
+                      <div className="bg-yellow-500/10 text-yellow-600 border border-yellow-500/30 rounded-lg p-3 text-xs">
+                        ⚠️ A bracket already exists for this tournament. Generating a new one will overwrite all match data.
+                      </div>
+                    )}
+
+                    <Button
+                      size="lg"
+                      className="w-full gap-2"
+                      onClick={handleGenerateBracket}
+                      disabled={isGeneratingBracket || bracketPlayers.some((p) => !p)}
+                    >
+                      {isGeneratingBracket ? (
+                        <span className="flex items-center gap-2">
+                          <span className="animate-spin">⏳</span> Generating…
+                        </span>
+                      ) : (
+                        <>
+                          <Trophy size={16} />
+                          Generate {bracketSize}-Player Bracket
+                        </>
+                      )}
+                    </Button>
+                    {bracketPlayers.some((p) => !p) && (
+                      <p className="text-xs text-center text-muted-foreground">
+                        Fill all {bracketSize} slots to generate the bracket
+                      </p>
+                    )}
                   </div>
 
-                  {/* Right: Group Reference Viewer */}
+                  {/* Right: Group Reference */}
                   <div className="space-y-4">
-                    <h3 className="text-lg font-bold">
-                      Group Qualification Reference
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Select a group to review its final standings and verify
-                      who qualified.
-                    </p>
-                    <select
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      value={selectedPlayoffGroupId}
-                      onChange={(e) =>
-                        setSelectedPlayoffGroupId(e.target.value)
-                      }
-                    >
-                      <option value="">Select a group...</option>
-                      {groups
-                        .filter((g) => g.status === "completed")
-                        .map((g) => (
-                          <option key={g.id} value={g.id}>
-                            {g.group_type} - Group {g.designation}{" "}
-                            {g.gender ? `(${g.gender})` : ""}
-                          </option>
-                        ))}
-                    </select>
+                    <div className="bg-card p-6 rounded-xl border">
+                      <h3 className="text-lg font-bold mb-1">Qualified Players</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        {playoffQualifiers.length} players qualified across all groups.
+                      </p>
+                      {playoffQualifiers.length > 0 ? (
+                        <div className="space-y-2 max-h-56 overflow-y-auto">
+                          {playoffQualifiers.map((q: any, i: number) => (
+                            <div
+                              key={q.player_id}
+                              className="flex items-center justify-between px-3 py-2 bg-muted/30 rounded-lg text-sm"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="w-6 h-6 rounded-full bg-green-500/20 text-green-500 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                                  {i + 1}
+                                </span>
+                                <span className="font-medium">{q.player_name}</span>
+                              </div>
+                              <span className="text-xs text-muted-foreground">
+                                {q.wins}W – {q.losses}L
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-muted-foreground py-4 text-center border-2 border-dashed rounded-lg">
+                          No qualified players found. Complete group stage matches first.
+                        </div>
+                      )}
+                    </div>
 
-                    {selectedPlayoffGroupId && (
-                      <div className="bg-card border rounded-md overflow-hidden mt-4">
+                    <div className="bg-card p-6 rounded-xl border">
+                      <h3 className="font-bold mb-3">Group Reference</h3>
+                      <select
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mb-4"
+                        value={selectedPlayoffGroupId}
+                        onChange={(e) => setSelectedPlayoffGroupId(e.target.value)}
+                      >
+                        <option value="">Select a completed group…</option>
+                        {groups
+                          .filter((g) => g.is_locked)
+                          .map((g) => (
+                            <option key={g.id} value={g.id}>
+                              {g.group_type} – Group {g.designation}{g.gender ? ` (${g.gender})` : ""}
+                            </option>
+                          ))}
+                      </select>
+                      {selectedPlayoffGroupId && playoffGroupStandings.length > 0 && (
                         <table className="w-full text-sm">
                           <thead className="bg-muted/50">
                             <tr>
@@ -2235,49 +2617,168 @@ export default function AdminDashboard() {
                             </tr>
                           </thead>
                           <tbody>
-                            {playoffGroupStandings.length === 0 ? (
-                              <tr>
-                                <td
-                                  colSpan={4}
-                                  className="px-3 py-6 text-center text-muted-foreground"
-                                >
-                                  No standings data.
+                            {playoffGroupStandings.map((s) => (
+                              <tr key={s.player_id} className="border-t">
+                                <td className="px-3 py-2 text-muted-foreground">{s.rank}</td>
+                                <td className="px-3 py-2 font-medium">{s.player_name}</td>
+                                <td className="px-3 py-2 text-muted-foreground">{s.wins}-{s.losses}</td>
+                                <td className="px-3 py-2">
+                                  {s.is_qualified ? (
+                                    <span className="bg-green-500/20 text-green-500 font-bold px-2 py-0.5 rounded text-xs">✓ Q</span>
+                                  ) : (
+                                    <span className="text-muted-foreground text-xs">—</span>
+                                  )}
                                 </td>
                               </tr>
-                            ) : (
-                              playoffGroupStandings.map((s) => (
-                                <tr key={s.player_id} className="border-t">
-                                  <td className="px-3 py-2 font-semibold text-muted-foreground">
-                                    {s.rank}
-                                  </td>
-                                  <td className="px-3 py-2">{s.player_name}</td>
-                                  <td className="px-3 py-2 text-muted-foreground">
-                                    {s.wins}-{s.losses}
-                                  </td>
-                                  <td className="px-3 py-2">
-                                    {s.is_qualified ? (
-                                      <span className="bg-green-500/20 text-green-500 font-bold px-2 py-1 rounded text-xs">
-                                        Yes
-                                      </span>
-                                    ) : (
-                                      <span className="text-muted-foreground">
-                                        -
-                                      </span>
-                                    )}
-                                  </td>
-                                </tr>
-                              ))
-                            )}
+                            ))}
                           </tbody>
                         </table>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
+                </div>
+              ) : (
+                /* ── BRACKET VIEW ── */
+                <div className="space-y-4">
+                  {bracketMatches.length === 0 ? (
+                    <div className="p-12 text-center text-muted-foreground border-2 border-dashed rounded-xl">
+                      No bracket generated yet.
+                      <button className="block mt-3 text-sm text-primary underline mx-auto" onClick={() => setPlayoffView("setup")}>
+                        Go to Setup →
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto pb-4">
+                      <div className="flex gap-6 min-w-max">
+                        {sortedRounds.map((round) => (
+                          <div key={round} className="flex flex-col gap-3 min-w-[220px]">
+                            {/* Round Header */}
+                            <div
+                              className={`text-center py-2 px-4 rounded-full text-xs font-bold uppercase tracking-wider ${
+                                round === "Final"
+                                  ? "bg-yellow-500/20 text-yellow-500 border border-yellow-500/30"
+                                  : round === "Semifinal"
+                                  ? "bg-purple-500/20 text-purple-400 border border-purple-500/30"
+                                  : round === "Quarterfinal"
+                                  ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                                  : "bg-muted text-muted-foreground border border-border"
+                              }`}
+                            >
+                              {round}
+                            </div>
+                            {/* Match Cards */}
+                            <div className="flex flex-col gap-4 flex-1 justify-around">
+                              {(matchesByRound[round] || [])
+                                .sort((a, b) => (a.bracket_position ?? 0) - (b.bracket_position ?? 0))
+                                .map((m) => {
+                                  const isCompleted = m.status === "completed";
+                                  const isLive = m.status === "live";
+                                  const p1Name = m.player1_name || m.player1?.name || "TBD";
+                                  const p2Name = m.player2_name || m.player2?.name || "TBD";
+                                  return (
+                                    <div
+                                      key={m.id}
+                                      className={`rounded-xl border overflow-hidden ${
+                                        isCompleted
+                                          ? "border-green-500/30 bg-green-500/5"
+                                          : isLive
+                                          ? "border-red-500/40 bg-red-500/5 ring-1 ring-red-500/30"
+                                          : "border-border bg-card"
+                                      }`}
+                                    >
+                                      {/* Status bar */}
+                                      <div
+                                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                                          isCompleted
+                                            ? "bg-green-500/20 text-green-500"
+                                            : isLive
+                                            ? "bg-red-500/20 text-red-400"
+                                            : "bg-muted/50 text-muted-foreground"
+                                        }`}
+                                      >
+                                        {isCompleted ? "✓ Final" : isLive ? "● Live" : "Scheduled"}
+                                      </div>
+                                      {/* Player 1 */}
+                                      <div
+                                        className={`flex items-center justify-between px-3 py-2.5 border-b border-border/50 ${
+                                          m.winner_id === m.player1_id && m.player1_id ? "bg-yellow-500/10" : ""
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          {m.winner_id === m.player1_id && m.player1_id && (
+                                            <span className="text-yellow-500 text-xs">🏆</span>
+                                          )}
+                                          <span
+                                            className={`text-sm truncate max-w-[140px] ${
+                                              !m.player1_id ? "text-muted-foreground italic" : "font-medium"
+                                            } ${
+                                              m.winner_id === m.player1_id && m.player1_id ? "font-bold text-yellow-500" : ""
+                                            }`}
+                                          >
+                                            {p1Name}
+                                          </span>
+                                        </div>
+                                        {isCompleted && (
+                                          <span className="text-sm font-bold ml-2 text-muted-foreground">
+                                            {m.player1_score ?? "—"}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {/* Player 2 */}
+                                      <div
+                                        className={`flex items-center justify-between px-3 py-2.5 ${
+                                          m.winner_id === m.player2_id && m.player2_id ? "bg-yellow-500/10" : ""
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          {m.winner_id === m.player2_id && m.player2_id && (
+                                            <span className="text-yellow-500 text-xs">🏆</span>
+                                          )}
+                                          <span
+                                            className={`text-sm truncate max-w-[140px] ${
+                                              !m.player2_id ? "text-muted-foreground italic" : "font-medium"
+                                            } ${
+                                              m.winner_id === m.player2_id && m.player2_id ? "font-bold text-yellow-500" : ""
+                                            }`}
+                                          >
+                                            {p2Name}
+                                          </span>
+                                        </div>
+                                        {isCompleted && (
+                                          <span className="text-sm font-bold ml-2 text-muted-foreground">
+                                            {m.player2_score ?? "—"}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Champion callout */}
+                  {(() => {
+                    const finalMatches = matchesByRound["Final"] || [];
+                    const finalMatch = finalMatches.find((m) => m.status === "completed");
+                    const champName = finalMatch?.winner_name?.trim();
+                    if (!champName) return null;
+                    return (
+                      <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-6 text-center">
+                        <div className="text-3xl mb-2">🏆</div>
+                        <div className="text-xs uppercase tracking-widest font-bold text-yellow-500 mb-1">Champion</div>
+                        <div className="text-2xl font-black">{champName}</div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
-          </div>
-        )}
+          );
+        })()}
       </main>
 
       <Dialog open={isPlayerDialogOpen} onOpenChange={setIsPlayerDialogOpen}>
@@ -3102,6 +3603,83 @@ export default function AdminDashboard() {
             </Button>
             <Button onClick={handleSaveGroup} disabled={isSavingGroup}>
               {isSavingGroup ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isTeamDialogOpen} onOpenChange={setIsTeamDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Doubles Team</DialogTitle>
+            <DialogDescription>
+              Pair two players to form a new team for Doubles groups.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Player 1</Label>
+              <select
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={teamForm.player1_id}
+                onChange={(e) => setTeamForm({ ...teamForm, player1_id: e.target.value })}
+              >
+                <option value="">Select a player...</option>
+                {players.filter(p => !p.is_team).map((p) => (
+                  <option key={`p1-${p.id}`} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>Player 2</Label>
+              <select
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={teamForm.player2_id}
+                onChange={(e) => setTeamForm({ ...teamForm, player2_id: e.target.value })}
+              >
+                <option value="">Select a player...</option>
+                {players.filter(p => !p.is_team).map((p) => (
+                  <option key={`p2-${p.id}`} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Gender</Label>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={teamForm.gender}
+                  onChange={(e) => setTeamForm({ ...teamForm, gender: e.target.value })}
+                >
+                  <option value="Men">Men</option>
+                  <option value="Women">Women</option>
+                  <option value="Mixed">Mixed</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Tennis Level</Label>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={teamForm.tennis_level}
+                  onChange={(e) => setTeamForm({ ...teamForm, tennis_level: e.target.value })}
+                >
+                  <option value="Beginner">Beginner</option>
+                  <option value="Intermediate">Intermediate</option>
+                  <option value="Advanced">Advanced</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setIsTeamDialogOpen(false)} disabled={isSavingTeam}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveTeam} disabled={isSavingTeam}>
+              {isSavingTeam ? "Creating..." : "Create Team"}
             </Button>
           </div>
         </DialogContent>

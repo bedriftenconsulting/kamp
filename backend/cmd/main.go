@@ -138,7 +138,7 @@ func main() {
 	matchHdl := matchHandler.NewMatchHandler(matchSvc)
 
 	scoringRepo := scoringRepo.NewScoringRepository(db)
-	scoringSvc := scoringService.NewScoringService(scoringRepo, matchRepo)
+	scoringSvc := scoringService.NewScoringService(scoringRepo, matchRepo, tournamentRepo)
 	scoringHdl := scoringHandler.NewScoringHandler(scoringSvc)
 
 	groupRepo := groupRepo.NewGroupRepository(db)
@@ -161,9 +161,12 @@ func main() {
 		api.PUT("/tournaments/:id", tournamentHdl.UpdateTournament)
 		api.DELETE("/tournaments/:id", tournamentHdl.DeleteTournament)
 		api.POST("/tournaments/:id/bracket", matchHdl.GenerateBracket)
+		api.GET("/tournaments/:id/rules", tournamentHdl.GetRules)
+		api.PUT("/tournaments/:id/rules", tournamentHdl.UpsertRules)
 
 		// Player
 		api.POST("/players", playerHdl.CreatePlayer)
+		api.POST("/teams", playerHdl.CreateTeam)
 		api.GET("/players", playerHdl.GetPlayers)
 		api.PUT("/players/:id", playerHdl.UpdatePlayer)
 		api.DELETE("/players/:id", playerHdl.DeletePlayer)

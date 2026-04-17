@@ -20,6 +20,10 @@ type Player struct {
 	Ranking         int       `json:"ranking"`
 	Bio             string    `json:"bio"`
 	ProfileImageURL string    `json:"profile_image_url"`
+	IsTeam          bool      `json:"is_team"`
+	Player1ID       string    `json:"player1_id,omitempty"` // For team creation API
+	Player2ID       string    `json:"player2_id,omitempty"` // For team creation API
+	TeamMembers     []Player  `json:"team_members,omitempty"` // For returning nested players
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 }

@@ -23,8 +23,8 @@ func (r *PlayerRepository) Create(ctx context.Context, p *model.Player) error {
 	//Check if player ID is empty
 	if strings.TrimSpace(p.ID) == "" {
 		query := `
-		INSERT INTO players (first_name, last_name, date_of_birth, nationality, tournament_id, tournament_name, gender, age, tennis_level, ranking, bio, profile_image_url)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		INSERT INTO players (first_name, last_name, date_of_birth, nationality, tournament_id, tournament_name, gender, age, tennis_level, ranking, bio, profile_image_url, is_team)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 		RETURNING id, created_at, updated_at
 		`
 
@@ -41,12 +41,13 @@ func (r *PlayerRepository) Create(ctx context.Context, p *model.Player) error {
 			p.Ranking,
 			p.Bio,
 			p.ProfileImageURL,
+			p.IsTeam,
 		).Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
 	}
 
 	query := `
-	INSERT INTO players (id, first_name, last_name, date_of_birth, nationality, tournament_id, tournament_name, gender, age, tennis_level, ranking, bio, profile_image_url)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+	INSERT INTO players (id, first_name, last_name, date_of_birth, nationality, tournament_id, tournament_name, gender, age, tennis_level, ranking, bio, profile_image_url, is_team)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	RETURNING created_at, updated_at
 	`
 
@@ -64,6 +65,7 @@ func (r *PlayerRepository) Create(ctx context.Context, p *model.Player) error {
 		p.Ranking,
 		p.Bio,
 		p.ProfileImageURL,
+		p.IsTeam,
 	).Scan(&p.CreatedAt, &p.UpdatedAt)
 }
 
@@ -83,6 +85,7 @@ func (r *PlayerRepository) GetAll(ctx context.Context, tournamentID string) ([]m
 		COALESCE(ranking, 0),
 		COALESCE(bio, ''),
 		COALESCE(profile_image_url, ''),
+		COALESCE(is_team, FALSE),
 		created_at,
 		updated_at
 	FROM players
@@ -119,6 +122,7 @@ func (r *PlayerRepository) GetAll(ctx context.Context, tournamentID string) ([]m
 			&p.Ranking,
 			&p.Bio,
 			&p.ProfileImageURL,
+			&p.IsTeam,
 			&p.CreatedAt,
 			&p.UpdatedAt,
 		)
@@ -153,8 +157,9 @@ func (r *PlayerRepository) Update(ctx context.Context, p *model.Player) error {
 	    ranking = $10,
 	    bio = $11,
 	    profile_image_url = $12,
+	    is_team = $13,
 	    updated_at = CURRENT_TIMESTAMP
-	WHERE id = $13
+	WHERE id = $14
 	`
 
 	_, err := r.db.Exec(ctx, query,
@@ -170,9 +175,45 @@ func (r *PlayerRepository) Update(ctx context.Context, p *model.Player) error {
 		p.Ranking,
 		p.Bio,
 		p.ProfileImageURL,
+		p.IsTeam,
 		p.ID,
 	)
 	return err
+}
+
+func (r *PlayerRepository) CreateTeam(ctx context.Context, p *model.Player, player1ID string, player2ID string) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	query := `
+	INSERT INTO players (first_name, last_name, tournament_id, gender, tennis_level, is_team)
+	VALUES ($1, $2, $3, $4, $5, TRUE)
+	RETURNING id, created_at, updated_at
+	`
+	err = tx.QueryRow(ctx, query,
+		p.FirstName, p.LastName, nullIfEmpty(p.TournamentID), p.Gender, p.TennisLevel,
+	).Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
+	if err != nil {
+		return err
+	}
+	p.IsTeam = true
+
+	// Link members
+	if string(player1ID) != "" {
+		if _, err := tx.Exec(ctx, `INSERT INTO team_members (team_id, player_id) VALUES ($1, $2)`, p.ID, player1ID); err != nil {
+			return err
+		}
+	}
+	if string(player2ID) != "" && player1ID != player2ID {
+		if _, err := tx.Exec(ctx, `INSERT INTO team_members (team_id, player_id) VALUES ($1, $2)`, p.ID, player2ID); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit(ctx)
 }
 
 func (r *PlayerRepository) Delete(ctx context.Context, id string) error {

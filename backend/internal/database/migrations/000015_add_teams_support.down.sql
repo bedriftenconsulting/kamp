@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS team_members;
+ALTER TABLE players DROP COLUMN IF EXISTS is_team;

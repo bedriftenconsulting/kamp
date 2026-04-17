@@ -26,7 +26,7 @@ P1_ID=$(echo $P1_RES | node -e "const data = JSON.parse(require('fs').readFileSy
 P2_ID=$(echo $P2_RES | node -e "const data = JSON.parse(require('fs').readFileSync(0, 'utf-8')); console.log(data.id || data.data?.id || data.player?.id)")
 
 echo "Creating Group..."
-GROUP_RES=$(curl -s -X POST "$API_URL/groups" -H "Content-Type: application/json" -d '{"designation":"A","gender":"Male","tennis_level":"Advanced","max_players":2,"qualifiers_count":1}')
+GROUP_RES=$(curl -s -X POST "$API_URL/groups" -H "Content-Type: application/json" -d '{"designation":"A","group_type":"Singles","gender":"Male","tennis_level":"Advanced","max_players":2,"qualifiers_count":1}')
 echo "$GROUP_RES"
 
 GROUP_ID=$(echo $GROUP_RES | node -e "const data = JSON.parse(require('fs').readFileSync(0, 'utf-8')); console.log(data.id || data.data?.id || data.group?.id)")

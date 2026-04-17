@@ -116,3 +116,41 @@ func normalizeTournamentSurface(v string) (string, error) {
 		return "", fmt.Errorf("invalid surface: %q (allowed: Hard, Clay, Grass)", v)
 	}
 }
+
+func (h *TournamentHandler) GetRules(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tournament id is required"})
+		return
+	}
+
+	rules, err := h.service.GetRules(c, id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "rules not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, rules)
+}
+
+func (h *TournamentHandler) UpsertRules(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tournament id is required"})
+		return
+	}
+
+	var rules model.TournamentRules
+	if err := c.ShouldBindJSON(&rules); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	rules.TournamentID = id
+
+	if err := h.service.UpsertRules(c, &rules); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, rules)
+}

@@ -164,6 +164,52 @@ func (r *TournamentRepository) UpdateExpiredTournaments(ctx context.Context) err
 	return err
 }
 
+func (r *TournamentRepository) GetRules(ctx context.Context, tournamentID string) (*model.TournamentRules, error) {
+	query := `
+	SELECT tournament_id::text, scoring_format, max_points, tie_break_trigger, tie_break_max_points, win_by_two, created_at, updated_at
+	FROM tournament_rules
+	WHERE tournament_id = $1
+	`
+	var rules model.TournamentRules
+	err := r.db.QueryRow(ctx, query, tournamentID).Scan(
+		&rules.TournamentID,
+		&rules.ScoringFormat,
+		&rules.MaxPoints,
+		&rules.TieBreakTrigger,
+		&rules.TieBreakMaxPoints,
+		&rules.WinByTwo,
+		&rules.CreatedAt,
+		&rules.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &rules, nil
+}
+
+func (r *TournamentRepository) UpsertRules(ctx context.Context, rules *model.TournamentRules) error {
+	query := `
+	INSERT INTO tournament_rules (tournament_id, scoring_format, max_points, tie_break_trigger, tie_break_max_points, win_by_two)
+	VALUES ($1, $2, $3, $4, $5, $6)
+	ON CONFLICT (tournament_id) DO UPDATE SET
+		scoring_format = EXCLUDED.scoring_format,
+		max_points = EXCLUDED.max_points,
+		tie_break_trigger = EXCLUDED.tie_break_trigger,
+		tie_break_max_points = EXCLUDED.tie_break_max_points,
+		win_by_two = EXCLUDED.win_by_two,
+		updated_at = NOW()
+	RETURNING created_at, updated_at
+	`
+	return r.db.QueryRow(ctx, query,
+		rules.TournamentID,
+		rules.ScoringFormat,
+		rules.MaxPoints,
+		rules.TieBreakTrigger,
+		rules.TieBreakMaxPoints,
+		rules.WinByTwo,
+	).Scan(&rules.CreatedAt, &rules.UpdatedAt)
+}
+
 // nullIfEmpty converts an empty string to nil so PostgreSQL stores NULL
 // instead of an empty string, keeping the column semantics clean.
 func nullIfEmpty(s string) interface{} {

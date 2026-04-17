@@ -56,6 +56,42 @@ func (h *PlayerHandler) CreatePlayer(c *gin.Context) {
 	c.JSON(http.StatusCreated, player)
 }
 
+type teamRequest struct {
+	TournamentID   string `json:"tournament_id"`
+	Player1ID      string `json:"player1_id" binding:"required"`
+	Player2ID      string `json:"player2_id" binding:"required"`
+	Player1Name    string `json:"player1_name" binding:"required"`
+	Player2Name    string `json:"player2_name" binding:"required"`
+	Gender         string `json:"gender"`
+	TennisLevel    string `json:"tennis_level"`
+}
+
+func (h *PlayerHandler) CreateTeam(c *gin.Context) {
+	var input teamRequest
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	teamName := input.Player1Name + " / " + input.Player2Name
+	
+	player := &model.Player{
+		FirstName:    teamName,
+		LastName:     "",
+		TournamentID: input.TournamentID,
+		Gender:       input.Gender,
+		TennisLevel:  input.TennisLevel,
+		IsTeam:       true,
+	}
+
+	if err := h.service.CreateTeam(c, player, input.Player1ID, input.Player2ID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, player)
+}
+
 func (h *PlayerHandler) GetPlayers(c *gin.Context) {
 	tournamentID := c.Query("tournament_id")
 	players, err := h.service.GetPlayers(c, tournamentID)

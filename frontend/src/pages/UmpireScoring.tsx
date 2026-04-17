@@ -18,6 +18,7 @@ export default function UmpireScoring() {
   const [selectedTournamentId, setSelectedTournamentId] = useState<string>("all");
   const [selectedMatch, setSelectedMatch] = useState<any>(null);
   const [scoringState, setScoringState] = useState<any>(null);
+  const [tournamentRules, setTournamentRules] = useState<any>(null);
 
   // Load matches
   useEffect(() => {
@@ -42,14 +43,23 @@ export default function UmpireScoring() {
     }
   });
 
-  // Load initial score state when a match is selected
+  // Load initial score state and rules when a match is selected
   useEffect(() => {
     if (selectedMatch) {
       api.getMatchState(selectedMatch.id).then((state) => {
         setScoringState(state);
       });
+      if (selectedMatch.tournament_id) {
+        api.getTournamentRules(selectedMatch.tournament_id)
+           .then(setTournamentRules)
+           .catch(() => setTournamentRules(null));
+      } else {
+        setTournamentRules(null);
+      }
     }
   }, [selectedMatch]);
+
+  const isNumeric = tournamentRules?.scoring_format === "numeric";
 
   const handleSelectMatch = async (match: any) => {
     if (match.status === "scheduled") {
@@ -184,12 +194,16 @@ export default function UmpireScoring() {
                     {playerName}
                   </span>
                   <div className="flex items-center gap-4">
-                    <span className="score-font text-primary-foreground/60 w-8 text-center text-xl font-bold bg-primary-foreground/5 rounded px-2 py-1">
-                      {sets}
-                    </span>
-                    <span className="score-font text-primary-foreground w-8 text-center text-xl font-bold bg-primary-foreground/10 rounded px-2 py-1">
-                      {games}
-                    </span>
+                    {!isNumeric && (
+                      <>
+                        <span className="score-font text-primary-foreground/60 w-8 text-center text-xl font-bold bg-primary-foreground/5 rounded px-2 py-1">
+                          {sets}
+                        </span>
+                        <span className="score-font text-primary-foreground w-8 text-center text-xl font-bold bg-primary-foreground/10 rounded px-2 py-1">
+                          {games}
+                        </span>
+                      </>
+                    )}
                     <span className="score-font w-12 text-center text-2xl font-black text-secondary bg-secondary/10 rounded py-1">
                       {points}
                     </span>
@@ -200,8 +214,12 @@ export default function UmpireScoring() {
           </div>
 
           <div className="text-center text-xs text-primary-foreground/50 flex justify-center gap-4">
-            <span>SETS</span>
-            <span>GAMES</span>
+            {!isNumeric && (
+              <>
+                <span>SETS</span>
+                <span>GAMES</span>
+              </>
+            )}
             <span className="text-secondary/70">POINTS</span>
           </div>
         </div>

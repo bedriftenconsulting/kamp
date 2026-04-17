@@ -36,3 +36,11 @@ func (s *TournamentService) UpdateTournament(ctx context.Context, t *model.Tourn
 func (s *TournamentService) DeleteTournament(ctx context.Context, id string) error {
 	return s.repo.Delete(ctx, id)
 }
+
+func (s *TournamentService) GetRules(ctx context.Context, tournamentID string) (*model.TournamentRules, error) {
+	return s.repo.GetRules(ctx, tournamentID)
+}
+
+func (s *TournamentService) UpsertRules(ctx context.Context, rules *model.TournamentRules) error {
+	return s.repo.UpsertRules(ctx, rules)
+}
