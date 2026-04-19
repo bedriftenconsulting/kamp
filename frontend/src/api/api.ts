@@ -39,10 +39,13 @@ export const api = {
     return res.json();
   },
 
-  updateMatch: async (matchId: string, payload: any) => {
+  updateMatch: async (matchId: string, payload: any, token?: string) => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    
     const res = await fetch(`${BASE_URL}/matches/${matchId}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -52,12 +55,13 @@ export const api = {
     return res.json();
   },
 
-  addPoint: async (matchId: string, player: number) => {
+  addPoint: async (matchId: string, player: number, token?: string) => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
     const res = await fetch(`${BASE_URL}/matches/${matchId}/point`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers,
       body: JSON.stringify({ player }),
     });
     return res.json();
@@ -100,6 +104,38 @@ export const api = {
   getTournamentQualifiers: async (tournamentId: string) => {
     const res = await fetch(`${BASE_URL}/groups/qualifiers?tournament_id=${tournamentId}`);
     if (!res.ok) return [];
+    return res.json();
+  },
+
+  createDirector: async (payload: { email: string; password: string; tournament_id: string }, token: string) => {
+    const res = await fetch(`${BASE_URL}/admin/users/director`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to create director");
+    }
+    return res.json();
+  },
+
+  createUmpire: async (payload: { email: string; password: string; tournament_id: string }, token: string) => {
+    const res = await fetch(`${BASE_URL}/admin/users/umpire`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to create umpire");
+    }
     return res.json();
   },
 

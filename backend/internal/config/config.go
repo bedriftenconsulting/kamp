@@ -18,6 +18,7 @@ type Config struct {
 	DBName             string
 	DBSSLMode          string
 	CORSAllowedOrigins []string
+	JWTSecret          string
 }
 
 func LoadConfig() *Config {
@@ -46,6 +47,8 @@ func LoadConfig() *Config {
 
 		// Comma-separated origins (supports wildcard when used with AllowWildcard in CORS config).
 		CORSAllowedOrigins: resolveCORSAllowedOrigins(),
+
+		JWTSecret: getEnv("JWT_SECRET", "super-secret-tennis-key-2026"),
 	}
 }
 

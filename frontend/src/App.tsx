@@ -11,35 +11,66 @@ import Standings from "./pages/Standings";
 import Results from "./pages/Results";
 import UmpireScoring from "./pages/UmpireScoring";
 import AdminDashboard from "./pages/AdminDashboard";
+import DirectorDashboard from "./pages/DirectorDashboard";
+import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
 import NotFound from "./pages/NotFound";
 import PublicLayout from "./components/layout/PublicLayout";
-import { ScoreBoard } from "./components/ScoreBoard";
+import { AuthProvider } from "./components/auth/AuthContext";
+import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/umpire" element={<UmpireScoring />} />
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route element={<PublicLayout />}>
-            <Route path="/" element={<Index />} />
-            <Route path="/live" element={<LiveScores />} />
-            <Route path="/schedule" element={<Schedule />} />
-            <Route path="/players" element={<Players />} />
-            <Route path="/standings" element={<Standings />} />
-            <Route path="/results" element={<Results />} />
-            <Route path="*" element={<NotFound />} />
-          </Route>
-        </Routes>
+        <AuthProvider>
+          <Toaster />
+          <Sonner />
+          <Routes>
+            {/* Public Auth Routes */}
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+
+            {/* Protected Management Routes */}
+            <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
+              <Route path="/admin" element={<AdminDashboard />} />
+            </Route>
+            
+            <Route
+              path="/director"
+              element={
+                <ProtectedRoute allowedRoles={["admin", "director"]}>
+                  <DirectorDashboard />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/umpire"
+              element={
+                <ProtectedRoute allowedRoles={["admin", "umpire", "director"]}>
+                  <UmpireScoring />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Public Layout Routes */}
+            <Route element={<PublicLayout />}>
+              <Route path="/" element={<Index />} />
+              <Route path="/live" element={<LiveScores />} />
+              <Route path="/schedule" element={<Schedule />} />
+              <Route path="/players" element={<Players />} />
+              <Route path="/standings" element={<Standings />} />
+              <Route path="/results" element={<Results />} />
+              <Route path="*" element={<NotFound />} />
+            </Route>
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );
-
 
 export default App;

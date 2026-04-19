@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
-import { Shield, Zap } from "lucide-react";
+import { Shield, Zap, Globe, ArrowLeft, Lock } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { api } from "@/api/api";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useAuth } from "@/components/auth/AuthContext";
 import { motion } from "framer-motion";
 import {
   Select,
@@ -13,6 +15,7 @@ import {
 } from "@/components/ui/select";
 
 export default function UmpireScoring() {
+  const { user, token } = useAuth();
   const [matches, setMatches] = useState<any[]>([]);
   const [tournaments, setTournaments] = useState<any[]>([]);
   const [selectedTournamentId, setSelectedTournamentId] = useState<string>("all");
@@ -20,7 +23,10 @@ export default function UmpireScoring() {
   const [scoringState, setScoringState] = useState<any>(null);
   const [tournamentRules, setTournamentRules] = useState<any>(null);
 
-  // Load matches
+  // If this umpire has a tournament assignment, lock to it
+  const lockedTournamentId = user?.role === "umpire" ? (user.tournament_id ?? null) : null;
+
+  // Load matches and tournaments
   useEffect(() => {
     api.getTournaments().then((data) => {
       const toList = (payload: any) =>
@@ -29,12 +35,24 @@ export default function UmpireScoring() {
     });
 
     api.getMatches().then((data) => {
-      const availableMatches = data.filter(
-        (m: any) => m.status === "scheduled" || m.status === "live"
-      );
+      const availableMatches = data.filter((m: any) => {
+        if (m.status !== "scheduled" && m.status !== "live") return false;
+        if (user?.role === "admin") return true;
+        // Umpire with tournament-scoped credentials sees all matches in their tournament
+        if (user?.tournament_id && m.tournament_id === user.tournament_id) return true;
+        // Umpire assigned directly to a specific match
+        return String(m.umpire_id) === String(user?.id);
+      });
       setMatches(availableMatches);
     });
-  }, []);
+  }, [user]);
+
+  // Lock the tournament dropdown to the umpire's assigned tournament
+  useEffect(() => {
+    if (lockedTournamentId) {
+      setSelectedTournamentId(lockedTournamentId);
+    }
+  }, [lockedTournamentId]);
 
   // Web socket for live scoring updates
   useWebSocket(selectedMatch?.id || "", (data) => {
@@ -63,14 +81,13 @@ export default function UmpireScoring() {
 
   const handleSelectMatch = async (match: any) => {
     if (match.status === "scheduled") {
-      // Set to live
       await api.updateMatch(match.id, {
         tournament_id: match.tournament_id || "",
         player1_id: match.player1_id,
         player2_id: match.player2_id,
         round: match.round,
         status: "live",
-      });
+      }, token || undefined);
       match.status = "live";
     }
     setSelectedMatch(match);
@@ -79,16 +96,19 @@ export default function UmpireScoring() {
   const scorePoint = useCallback(
     async (playerIdx: 1 | 2) => {
       if (!selectedMatch) return;
-      // Backend automatically determines if match is over, tiebreaks, etc.
-      const newState = await api.addPoint(selectedMatch.id, playerIdx);
+      const newState = await api.addPoint(selectedMatch.id, playerIdx, token || undefined);
       setScoringState(newState);
     },
-    [selectedMatch]
+    [selectedMatch, token]
   );
 
   const filteredMatches = selectedTournamentId === "all"
     ? matches
     : matches.filter((m) => m.tournament_id === selectedTournamentId);
+
+  const lockedTournamentName = lockedTournamentId
+    ? tournaments.find((t) => t.id === lockedTournamentId)?.name
+    : null;
 
   if (!selectedMatch) {
     return (
@@ -104,20 +124,36 @@ export default function UmpireScoring() {
             Select a match to start scoring
           </p>
 
+          <div className="flex flex-col gap-2 mb-6">
+            <Link to="/">
+              <Button variant="ghost" className="w-full gap-2 text-muted-foreground hover:text-primary">
+                <Globe size={16} />
+                Go to Website
+              </Button>
+            </Link>
+          </div>
+
           <div className="mb-6">
-            <Select value={selectedTournamentId} onValueChange={setSelectedTournamentId}>
-              <SelectTrigger className="w-full bg-background">
-                <SelectValue placeholder="All Tournaments" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Tournaments</SelectItem>
-                {tournaments.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {lockedTournamentId ? (
+              <div className="flex items-center gap-2 justify-center px-3 py-2 rounded-md bg-muted border text-sm font-medium text-muted-foreground">
+                <Lock size={14} />
+                {lockedTournamentName ?? "Assigned Tournament"}
+              </div>
+            ) : (
+              <Select value={selectedTournamentId} onValueChange={setSelectedTournamentId}>
+                <SelectTrigger className="w-full bg-background">
+                  <SelectValue placeholder="All Tournaments" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Tournaments</SelectItem>
+                  {tournaments.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <div className="flex flex-col gap-3 max-h-[60vh] overflow-y-auto pr-2">
@@ -161,14 +197,27 @@ export default function UmpireScoring() {
       <div className="bg-primary p-4 pt-6">
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedMatch(null)}
-              className="border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
-            >
-              Back
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedMatch(null)}
+                className="border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+              >
+                <ArrowLeft size={16} className="mr-2" />
+                Back
+              </Button>
+              <Link to="/">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-primary-foreground/70 hover:bg-primary-foreground/10 hover:text-primary-foreground gap-2"
+                >
+                  <Globe size={16} />
+                  Website
+                </Button>
+              </Link>
+            </div>
             <span className="flex items-center gap-1.5 px-3 py-1 bg-live/10 rounded-full">
               <span className="w-2 h-2 rounded-full bg-live animate-pulse-live" />
               <span className="text-xs font-bold uppercase text-live">LIVE</span>
@@ -259,6 +308,7 @@ export default function UmpireScoring() {
         ) : (
           <>
             <button
+              type="button"
               onClick={() => scorePoint(1)}
               className="flex-1 bg-secondary hover:bg-secondary/90 active:scale-[0.98] transition-all rounded-xl flex items-center justify-center min-h-[140px] shadow-lg border border-secondary/20"
             >
@@ -273,6 +323,7 @@ export default function UmpireScoring() {
             </button>
 
             <button
+              type="button"
               onClick={() => scorePoint(2)}
               className="flex-1 bg-primary-foreground hover:bg-primary-foreground/90 active:scale-[0.98] transition-all rounded-xl flex items-center justify-center min-h-[140px] shadow-lg border border-primary-foreground/20"
             >

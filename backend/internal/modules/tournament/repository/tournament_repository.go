@@ -33,8 +33,8 @@ func NewTournamentRepository(db *pgxpool.Pool) *TournamentRepository {
 // (id, created_at, updated_at) back onto the passed struct.
 func (r *TournamentRepository) Create(ctx context.Context, t *model.Tournament) error {
 	query := `
-	INSERT INTO tournaments (name, location, start_date, end_date, status, surface, banner_image, accent_color)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	INSERT INTO tournaments (name, location, start_date, end_date, status, surface, banner_image, accent_color, director_id)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	RETURNING id, created_at, updated_at
 	`
 
@@ -46,7 +46,8 @@ func (r *TournamentRepository) Create(ctx context.Context, t *model.Tournament) 
 		t.Status,
 		t.Surface,
 		nullIfEmpty(t.BannerImage), // base64 data URL or NULL
-		nullIfEmpty(t.AccentColor), // hex colour or NULL
+		t.AccentColor, // hex colour or NULL
+		nullIfEmpty(ptrString(t.DirectorID)),
 	).Scan(&t.ID, &t.CreatedAt, &t.UpdatedAt)
 
 	if err != nil {
@@ -63,7 +64,8 @@ func (r *TournamentRepository) GetAll(ctx context.Context) ([]model.Tournament, 
 	SELECT id, name, location, start_date, end_date, status,
 	       created_at, updated_at, surface,
 	       COALESCE(banner_image, '') AS banner_image,
-	       COALESCE(accent_color, '') AS accent_color
+	       COALESCE(accent_color, '') AS accent_color,
+	       director_id::text
 	FROM tournaments
 	ORDER BY created_at DESC
 	`
@@ -93,6 +95,7 @@ func (r *TournamentRepository) GetAll(ctx context.Context) ([]model.Tournament, 
 			&surface,
 			&t.BannerImage, // COALESCE ensures never NULL; assigned directly
 			&t.AccentColor, // same
+			&t.DirectorID,
 		)
 
 		if err != nil {
@@ -129,8 +132,9 @@ func (r *TournamentRepository) Update(ctx context.Context, t *model.Tournament) 
 	    surface      = $6,
 	    banner_image = $7,
 	    accent_color = $8,
+	    director_id  = $9,
 	    updated_at   = CURRENT_TIMESTAMP
-	WHERE id = $9
+	WHERE id = $10
 	RETURNING created_at, updated_at
 	`
 
@@ -143,6 +147,7 @@ func (r *TournamentRepository) Update(ctx context.Context, t *model.Tournament) 
 		t.Surface,
 		nullIfEmpty(t.BannerImage),
 		nullIfEmpty(t.AccentColor),
+		nullIfEmpty(ptrString(t.DirectorID)),
 		t.ID,
 	).Scan(&t.CreatedAt, &t.UpdatedAt)
 }
@@ -217,4 +222,11 @@ func nullIfEmpty(s string) interface{} {
 		return nil
 	}
 	return s
+}
+
+func ptrString(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }

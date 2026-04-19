@@ -26,4 +26,5 @@ type Tournament struct {
 	Surface     string     `json:"surface"`
 	BannerImage string     `json:"banner_image"` // base64 data URL, stored in DB
 	AccentColor string     `json:"accent_color"` // hex colour, e.g. "#e91e8c"
+	DirectorID  *string    `json:"director_id,omitempty"`
 }

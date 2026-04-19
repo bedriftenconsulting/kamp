@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import ScoreCard from "@/components/matches/ScoreCard";
+import { useAuth } from "@/components/auth/AuthContext";
 import { API_V1_URL } from "@/lib/api-url";
 import {
   LayoutDashboard,
@@ -13,9 +14,12 @@ import {
   Trash2,
   CheckCircle2,
   Menu,
-  X,
+  X as CloseIcon,
   Settings,
+  Globe,
+  ShieldCheck,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,15 +31,33 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 const tabs = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "players", label: "Players", icon: Users },
-  { id: "groups", label: "Groups", icon: Blocks },
-  { id: "matches", label: "Matches", icon: Calendar },
-  { id: "tournament", label: "Tournament", icon: Trophy },
-  { id: "rules", label: "Rules & Settings", icon: Settings },
-  { id: "playoffs", label: "Playoffs", icon: Zap },
+  { id: "overview", label: "Overview", icon: LayoutDashboard, adminOnly: false },
+  { id: "players", label: "Players", icon: Users, adminOnly: false },
+  { id: "groups", label: "Groups", icon: Blocks, adminOnly: false },
+  { id: "matches", label: "Matches", icon: Calendar, adminOnly: false },
+  { id: "tournament", label: "Tournament", icon: Trophy, adminOnly: false },
+  { id: "rules", label: "Rules & Settings", icon: Settings, adminOnly: false },
+  { id: "playoffs", label: "Playoffs", icon: Zap, adminOnly: false },
+  { id: "users", label: "Users", icon: Users, adminOnly: true },
+  { id: "directors", label: "Directors", icon: ShieldCheck, adminOnly: true },
 ];
 
 type Player = {
@@ -93,6 +115,15 @@ type Tournament = {
   surface?: string | null;
   banner_image?: string | null; // base64 data URL stored as TEXT in DB
   accent_color?: string | null; // hex colour stored as TEXT in DB
+  director_id?: string | null; 
+};
+
+type SystemUser = {
+  id: string;
+  email: string;
+  role: string;
+  tournament_id?: string;
+  created_at: string;
 };
 
 type PlayerForm = {
@@ -138,6 +169,7 @@ type TournamentForm = {
   surface: string;
   banner_image_url: string;
   accent_color: string;
+  director_id: string;
 };
 
 type TournamentRules = {
@@ -291,6 +323,7 @@ const emptyTournamentForm: TournamentForm = {
   surface: "",
   banner_image_url: "",
   accent_color: "#e91e8c",
+  director_id: "",
 };
 
 const emptyTournamentRules: TournamentRules = {
@@ -367,9 +400,11 @@ const fetchJSONOrFallback = async <T,>(
   }
 };
 
-export default function AdminDashboard() {
+export default function AdminDashboard({ forcedTournamentId }: { forcedTournamentId?: string }) {
+  const { token, user: authUser } = useAuth();
+  const isAdmin = authUser?.role === "admin";
   const [activeTab, setActiveTab] = useState("overview");
-  const [globalTournamentId, setGlobalTournamentId] = useState<string>("");
+  const [globalTournamentId, setGlobalTournamentId] = useState<string>(forcedTournamentId || "");
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [matches, setMatches] = useState<Match[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -444,6 +479,17 @@ export default function AdminDashboard() {
   const [savingKnockoutMatchId, setSavingKnockoutMatchId] = useState<
     string | null
   >(null);
+
+  const [systemUsers, setSystemUsers] = useState<SystemUser[]>([]);
+  const [isUpdatingUserRole, setIsUpdatingUserRole] = useState<string | null>(null);
+  const [directors, setDirectors] = useState<any[]>([]);
+  const [isCreateUmpireOpen, setIsCreateUmpireOpen] = useState(false);
+  const [umpireForm, setUmpireForm] = useState({ email: "", password: "", tournament_id: "" });
+  const [isCreatingUmpire, setIsCreatingUmpire] = useState(false);
+
+  const [isCreateDirectorOpen, setIsCreateDirectorOpen] = useState(false);
+  const [directorForm, setDirectorForm] = useState({ email: "", password: "", tournament_id: "" });
+  const [isCreatingDirector, setIsCreatingDirector] = useState(false);
 
   const [matchPage, setMatchPage] = useState(1);
   const matchesPerPage = 20;
@@ -667,6 +713,22 @@ export default function AdminDashboard() {
             setPlayoffQualifiers([]);
           });
       }
+
+      // Fetch users for director selection (Admins only really need this, but we'll fetch for now)
+      fetch(`${API_V1_URL}/admin/users?role=director`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(res => res.ok ? res.json() : [])
+        .then(data => setDirectors(Array.isArray(data) ? data : []))
+        .catch(() => setDirectors([]));
+
+      // Fetch all system users for the Users tab
+      fetch(`${API_V1_URL}/admin/users`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(res => res.ok ? res.json() : [])
+        .then(data => setSystemUsers(Array.isArray(data) ? data : []))
+        .catch(() => setSystemUsers([]));
 
     } catch (error) {
       console.error("Error loading admin data:", error);
@@ -1051,8 +1113,76 @@ export default function AdminDashboard() {
       // Read appearance fields directly from the DB-backed Tournament object
       banner_image_url: t.banner_image || "",
       accent_color: t.accent_color || "#e91e8c",
+      director_id: t.director_id || "",
     });
     setIsTournamentDialogOpen(true);
+  };
+
+  const handleCreateUmpire = async () => {
+    if (!umpireForm.email || !umpireForm.password || !umpireForm.tournament_id) {
+      alert("All fields are required.");
+      return;
+    }
+    setIsCreatingUmpire(true);
+    try {
+      await api.createUmpire(umpireForm, token!);
+      toast({ title: "Umpire Created", description: `Credentials created for ${umpireForm.email}` });
+      setIsCreateUmpireOpen(false);
+      setUmpireForm({ email: "", password: "", tournament_id: "" });
+      await fetchData();
+    } catch (error: any) {
+      alert(error?.message || "Failed to create umpire");
+    } finally {
+      setIsCreatingUmpire(false);
+    }
+  };
+
+  const handleCreateDirector = async () => {
+    if (!directorForm.email || !directorForm.password || !directorForm.tournament_id) {
+      alert("All fields are required.");
+      return;
+    }
+    setIsCreatingDirector(true);
+    try {
+      await api.createDirector(directorForm, token!);
+      toast({ title: "Director Created", description: `Director credentials created for ${directorForm.email}` });
+      setIsCreateDirectorOpen(false);
+      setDirectorForm({ email: "", password: "", tournament_id: "" });
+      await fetchData();
+    } catch (error: any) {
+      alert(error?.message || "Failed to create director");
+    } finally {
+      setIsCreatingDirector(false);
+    }
+  };
+
+  const handleUpdateUserRole = async (userId: string, newRole: string) => {
+    setIsUpdatingUserRole(userId);
+    try {
+      const res = await fetch(`${API_V1_URL}/admin/users/${userId}/role`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ role: newRole }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to update user role");
+      }
+
+      toast({
+        title: "Role Updated",
+        description: `User role has been changed to ${newRole}`,
+      });
+      await fetchData();
+    } catch (error: any) {
+      alert(error?.message || "Failed to update user role");
+    } finally {
+      setIsUpdatingUserRole(null);
+    }
   };
 
   /**
@@ -1094,16 +1224,20 @@ export default function AdminDashboard() {
         // Appearance fields (stored in DB; migration 000010)
         banner_image: tournamentForm.banner_image_url || null,
         accent_color: tournamentForm.accent_color || null,
+        director_id: tournamentForm.director_id || null,
       };
 
       const url = isEditingTournament
         ? `${API_V1_URL}/tournaments/${tournamentForm.id}`
-        : `${API_V1_URL}/tournaments`;
+        : `${API_V1_URL}/admin/tournaments`;
       const method = isEditingTournament ? "PUT" : "POST";
 
       const res = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify(payload),
       });
 
@@ -1129,8 +1263,9 @@ export default function AdminDashboard() {
 
     setDeletingTournamentId(id);
     try {
-      const res = await fetch(`${API_V1_URL}/tournaments/${id}`, {
+      const res = await fetch(`${API_V1_URL}/admin/tournaments/${id}`, {
         method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
       });
 
       if (!res.ok) {
@@ -1425,13 +1560,13 @@ export default function AdminDashboard() {
               className="lg:hidden text-sidebar-foreground/70 hover:text-sidebar-foreground"
               onClick={() => setIsMobileSidebarOpen(false)}
             >
-              <X size={18} />
+              <CloseIcon size={18} />
             </button>
           </div>
         </div>
 
         <nav className="flex-1 p-2">
-          {tabs.map((tab) => (
+          {tabs.filter((t) => !t.adminOnly || isAdmin).map((tab) => (
             <button
               key={tab.id}
               onClick={() => {
@@ -1449,6 +1584,16 @@ export default function AdminDashboard() {
             </button>
           ))}
         </nav>
+
+        <div className="p-4 border-t border-sidebar-border">
+          <Link
+            to="/"
+            className="flex items-center gap-3 px-3 py-2 text-sm font-medium text-sidebar-foreground/70 hover:text-sidebar-primary hover:bg-sidebar-accent/50 rounded-sm transition-colors"
+          >
+            <Globe size={18} />
+            Go to Website
+          </Link>
+        </div>
       </aside>
 
       <main className="flex-1 p-6 min-w-0">
@@ -2436,11 +2581,9 @@ export default function AdminDashboard() {
                         {(stagePreview[bracketSize] || []).map((stage, i) => (
                           <span
                             key={stage}
-                            className={`px-3 py-1 rounded-full text-xs font-semibold border ${
-                              i === (stagePreview[bracketSize] || []).length - 1
+                            className={`px-3 py-1 rounded-full text-xs font-semibold border ${i === (stagePreview[bracketSize] || []).length - 1
                                 ? "bg-yellow-500/20 text-yellow-500 border-yellow-500/30"
-                                : "bg-muted text-muted-foreground border-border"
-                            }`}
+                                : "bg-muted text-muted-foreground border-border"}`}
                           >
                             {stage}
                           </span>
@@ -2455,11 +2598,9 @@ export default function AdminDashboard() {
                           <button
                             key={size}
                             onClick={() => setBracketSize(size)}
-                            className={`py-2 px-3 rounded-lg text-sm font-bold border transition-all ${
-                              bracketSize === size
+                            className={`py-2 px-3 rounded-lg text-sm font-bold border transition-all ${bracketSize === size
                                 ? "bg-primary text-primary-foreground border-primary"
-                                : "bg-card border-border hover:border-primary/50 text-muted-foreground hover:text-foreground"
-                            }`}
+                                : "bg-card border-border hover:border-primary/50 text-muted-foreground hover:text-foreground"}`}
                           >
                             {size}P
                           </button>
@@ -2487,11 +2628,9 @@ export default function AdminDashboard() {
                               )}
                               <div className="flex items-center gap-3 bg-muted/30 rounded-lg px-3 py-2">
                                 <span
-                                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                                    isFirstOfPair
+                                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isFirstOfPair
                                       ? "bg-blue-500/20 text-blue-400"
-                                      : "bg-orange-500/20 text-orange-400"
-                                  }`}
+                                      : "bg-orange-500/20 text-orange-400"}`}
                                 >
                                   {idx + 1}
                                 </span>
@@ -2502,22 +2641,22 @@ export default function AdminDashboard() {
                                     const newArr = [...bracketPlayers];
                                     newArr[idx] = e.target.value;
                                     setBracketPlayers(newArr);
-                                  }}
+                                  } }
                                 >
                                   <option value="">Select player…</option>
                                   {playoffQualifiers.length > 0
                                     ? playoffQualifiers.map((p) => (
-                                        <option key={p.player_id} value={p.player_id}>
-                                          {p.player_name}
-                                        </option>
-                                      ))
+                                      <option key={p.player_id} value={p.player_id}>
+                                        {p.player_name}
+                                      </option>
+                                    ))
                                     : players
-                                        .filter((p) => !p.is_team || true)
-                                        .map((p) => (
-                                          <option key={p.id} value={p.id}>
-                                            {p.name || `${p.first_name} ${p.last_name}`.trim()}
-                                          </option>
-                                        ))}
+                                      .filter((p) => !p.is_team || true)
+                                      .map((p) => (
+                                        <option key={p.id} value={p.id}>
+                                          {p.name || `${p.first_name} ${p.last_name}`.trim()}
+                                        </option>
+                                      ))}
                                 </select>
                               </div>
                             </div>
@@ -2654,15 +2793,13 @@ export default function AdminDashboard() {
                           <div key={round} className="flex flex-col gap-3 min-w-[220px]">
                             {/* Round Header */}
                             <div
-                              className={`text-center py-2 px-4 rounded-full text-xs font-bold uppercase tracking-wider ${
-                                round === "Final"
+                              className={`text-center py-2 px-4 rounded-full text-xs font-bold uppercase tracking-wider ${round === "Final"
                                   ? "bg-yellow-500/20 text-yellow-500 border border-yellow-500/30"
                                   : round === "Semifinal"
-                                  ? "bg-purple-500/20 text-purple-400 border border-purple-500/30"
-                                  : round === "Quarterfinal"
-                                  ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                                  : "bg-muted text-muted-foreground border border-border"
-                              }`}
+                                    ? "bg-purple-500/20 text-purple-400 border border-purple-500/30"
+                                    : round === "Quarterfinal"
+                                      ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                                      : "bg-muted text-muted-foreground border border-border"}`}
                             >
                               {round}
                             </div>
@@ -2678,42 +2815,32 @@ export default function AdminDashboard() {
                                   return (
                                     <div
                                       key={m.id}
-                                      className={`rounded-xl border overflow-hidden ${
-                                        isCompleted
+                                      className={`rounded-xl border overflow-hidden ${isCompleted
                                           ? "border-green-500/30 bg-green-500/5"
                                           : isLive
-                                          ? "border-red-500/40 bg-red-500/5 ring-1 ring-red-500/30"
-                                          : "border-border bg-card"
-                                      }`}
+                                            ? "border-red-500/40 bg-red-500/5 ring-1 ring-red-500/30"
+                                            : "border-border bg-card"}`}
                                     >
                                       {/* Status bar */}
                                       <div
-                                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${
-                                          isCompleted
+                                        className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${isCompleted
                                             ? "bg-green-500/20 text-green-500"
                                             : isLive
-                                            ? "bg-red-500/20 text-red-400"
-                                            : "bg-muted/50 text-muted-foreground"
-                                        }`}
+                                              ? "bg-red-500/20 text-red-400"
+                                              : "bg-muted/50 text-muted-foreground"}`}
                                       >
                                         {isCompleted ? "✓ Final" : isLive ? "● Live" : "Scheduled"}
                                       </div>
                                       {/* Player 1 */}
                                       <div
-                                        className={`flex items-center justify-between px-3 py-2.5 border-b border-border/50 ${
-                                          m.winner_id === m.player1_id && m.player1_id ? "bg-yellow-500/10" : ""
-                                        }`}
+                                        className={`flex items-center justify-between px-3 py-2.5 border-b border-border/50 ${m.winner_id === m.player1_id && m.player1_id ? "bg-yellow-500/10" : ""}`}
                                       >
                                         <div className="flex items-center gap-2 min-w-0">
                                           {m.winner_id === m.player1_id && m.player1_id && (
                                             <span className="text-yellow-500 text-xs">🏆</span>
                                           )}
                                           <span
-                                            className={`text-sm truncate max-w-[140px] ${
-                                              !m.player1_id ? "text-muted-foreground italic" : "font-medium"
-                                            } ${
-                                              m.winner_id === m.player1_id && m.player1_id ? "font-bold text-yellow-500" : ""
-                                            }`}
+                                            className={`text-sm truncate max-w-[140px] ${!m.player1_id ? "text-muted-foreground italic" : "font-medium"} ${m.winner_id === m.player1_id && m.player1_id ? "font-bold text-yellow-500" : ""}`}
                                           >
                                             {p1Name}
                                           </span>
@@ -2726,20 +2853,14 @@ export default function AdminDashboard() {
                                       </div>
                                       {/* Player 2 */}
                                       <div
-                                        className={`flex items-center justify-between px-3 py-2.5 ${
-                                          m.winner_id === m.player2_id && m.player2_id ? "bg-yellow-500/10" : ""
-                                        }`}
+                                        className={`flex items-center justify-between px-3 py-2.5 ${m.winner_id === m.player2_id && m.player2_id ? "bg-yellow-500/10" : ""}`}
                                       >
                                         <div className="flex items-center gap-2 min-w-0">
                                           {m.winner_id === m.player2_id && m.player2_id && (
                                             <span className="text-yellow-500 text-xs">🏆</span>
                                           )}
                                           <span
-                                            className={`text-sm truncate max-w-[140px] ${
-                                              !m.player2_id ? "text-muted-foreground italic" : "font-medium"
-                                            } ${
-                                              m.winner_id === m.player2_id && m.player2_id ? "font-bold text-yellow-500" : ""
-                                            }`}
+                                            className={`text-sm truncate max-w-[140px] ${!m.player2_id ? "text-muted-foreground italic" : "font-medium"} ${m.winner_id === m.player2_id && m.player2_id ? "font-bold text-yellow-500" : ""}`}
                                           >
                                             {p2Name}
                                           </span>
@@ -2757,933 +2878,1105 @@ export default function AdminDashboard() {
                           </div>
                         ))}
                       </div>
+
+                      {/* Champion callout */}
+                      {(() => {
+                        const finalMatches = matchesByRound["Final"] || [];
+                        const finalMatch = finalMatches.find((m) => m.status === "completed");
+                        const champName = finalMatch?.winner_name?.trim();
+                        if (!champName) return null;
+                        return (
+                          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-6 text-center">
+                            <div className="text-3xl mb-2">🏆</div>
+                            <div className="text-xs uppercase tracking-widest font-bold text-yellow-500 mb-1">Champion</div>
+                            <div className="text-2xl font-black">{champName}</div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
-
-                  {/* Champion callout */}
-                  {(() => {
-                    const finalMatches = matchesByRound["Final"] || [];
-                    const finalMatch = finalMatches.find((m) => m.status === "completed");
-                    const champName = finalMatch?.winner_name?.trim();
-                    if (!champName) return null;
-                    return (
-                      <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-6 text-center">
-                        <div className="text-3xl mb-2">🏆</div>
-                        <div className="text-xs uppercase tracking-widest font-bold text-yellow-500 mb-1">Champion</div>
-                        <div className="text-2xl font-black">{champName}</div>
-                      </div>
-                    );
-                  })()}
                 </div>
               )}
             </div>
           );
         })()}
-      </main>
 
-      <Dialog open={isPlayerDialogOpen} onOpenChange={setIsPlayerDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              {isEditingPlayer ? "Edit Player" : "Add Player"}
-            </DialogTitle>
-            <DialogDescription>
-              Fill player details and save changes.
-            </DialogDescription>
-          </DialogHeader>
+        {activeTab === "users" && (
+          <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-black">System Users</h1>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Manage user roles and permissions across the entire platform.
+                </p>
+              </div>
+              <Button onClick={() => setIsCreateUmpireOpen(true)} size="sm">
+                + Create Umpire
+              </Button>
+            </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="player-tournament-id">
-                Tournament Assignment
-              </Label>
-              <select
-                id="player-tournament-id"
-                className="w-full h-10 flex rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                value={playerForm.tournament_id}
-                onChange={(e) =>
-                  setPlayerForm((prev) => ({
+            <div className="border rounded-xl overflow-hidden bg-card">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="w-[260px]">User Email</TableHead>
+                    <TableHead>Current Role</TableHead>
+                    <TableHead>Tournament</TableHead>
+                    <TableHead>Joined On</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {systemUsers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-24 text-center text-muted-foreground italic">
+                        No users registered in the system yet.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    systemUsers.map((u) => (
+                      <TableRow key={u.id} className="hover:bg-muted/30 transition-colors">
+                        <TableCell className="font-medium">{u.email}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="secondary"
+                            className={`
+                        ${u.role === 'admin' ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20' : ''}
+                        ${u.role === 'director' ? 'bg-blue-500/10 text-blue-500 hover:bg-blue-500/20' : ''}
+                        ${u.role === 'umpire' ? 'bg-green-500/10 text-green-500 hover:bg-green-500/20' : ''}
+                        ${u.role === 'user' ? 'bg-slate-500/10 text-slate-500' : ''}
+                      `}
+                          >
+                            {u.role.toUpperCase()}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-sm">
+                          {u.tournament_id
+                            ? (tournaments.find((t) => t.id === u.tournament_id)?.name ?? u.tournament_id.slice(0, 8) + "…")
+                            : <span className="text-muted-foreground/40">—</span>}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-sm">
+                          {new Date(u.created_at).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Select
+                            disabled={isUpdatingUserRole === u.id}
+                            value={u.role}
+                            onValueChange={(val) => handleUpdateUserRole(u.id, val)}
+                          >
+                            <SelectTrigger className="w-[160px] ml-auto">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="user">User (Fan)</SelectItem>
+                              <SelectItem value="umpire">Umpire</SelectItem>
+                              <SelectItem value="director">Director</SelectItem>
+                              <SelectItem value="admin">Super Admin</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================
+            DIRECTORS  (super admin only)
+            ========================================================= */}
+        {activeTab === "directors" && isAdmin && (
+          <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-black">Tournament Directors</h1>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Create director credentials and assign them to a tournament. Directors can manage players, matches, and settings for their tournament only.
+                </p>
+              </div>
+              <Button onClick={() => setIsCreateDirectorOpen(true)} size="sm">
+                + Create Director
+              </Button>
+            </div>
+
+            <div className="border rounded-xl overflow-hidden bg-card">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead>Director Email</TableHead>
+                    <TableHead>Assigned Tournament</TableHead>
+                    <TableHead>Created On</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {directors.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={3} className="h-24 text-center text-muted-foreground italic">
+                        No directors assigned yet. Use the button above to create one.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    directors.map((d) => {
+                      const assignedTournament = tournaments.find((t) => t.director_id === d.id);
+                      return (
+                        <TableRow key={d.id} className="hover:bg-muted/30 transition-colors">
+                          <TableCell className="font-medium">{d.email}</TableCell>
+                          <TableCell>
+                            {assignedTournament ? (
+                              <Badge variant="secondary" className="bg-blue-500/10 text-blue-500">
+                                {assignedTournament.name}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground/40 text-sm">— unassigned</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm">
+                            {new Date(d.created_at).toLocaleDateString()}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
+
+      </main><Dialog open={isPlayerDialogOpen} onOpenChange={setIsPlayerDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>
+                {isEditingPlayer ? "Edit Player" : "Add Player"}
+              </DialogTitle>
+              <DialogDescription>
+                Fill player details and save changes.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="player-tournament-id">
+                  Tournament Assignment
+                </Label>
+                <select
+                  id="player-tournament-id"
+                  className="w-full h-10 flex rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  value={playerForm.tournament_id}
+                  onChange={(e) => setPlayerForm((prev) => ({
                     ...prev,
                     tournament_id: e.target.value,
-                  }))
-                }
-              >
-                <option value="">No Tournament Assigned</option>
-                {tournaments.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+                  }))}
+                >
+                  <option value="">No Tournament Assigned</option>
+                  {tournaments.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="player-id">ID</Label>
-              <Input
-                id="player-id"
-                placeholder="UUID (optional for create)"
-                value={playerForm.id}
-                onChange={(e) =>
-                  setPlayerForm((prev) => ({ ...prev, id: e.target.value }))
-                }
-                disabled={isEditingPlayer}
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="player-id">ID</Label>
+                <Input
+                  id="player-id"
+                  placeholder="UUID (optional for create)"
+                  value={playerForm.id}
+                  onChange={(e) => setPlayerForm((prev) => ({ ...prev, id: e.target.value }))}
+                  disabled={isEditingPlayer} />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="player-first-name">First Name</Label>
-              <Input
-                id="player-first-name"
-                value={playerForm.first_name}
-                onChange={(e) =>
-                  setPlayerForm((prev) => ({
+              <div className="space-y-2">
+                <Label htmlFor="player-first-name">First Name</Label>
+                <Input
+                  id="player-first-name"
+                  value={playerForm.first_name}
+                  onChange={(e) => setPlayerForm((prev) => ({
                     ...prev,
                     first_name: e.target.value,
-                  }))
-                }
-              />
-            </div>
+                  }))} />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="player-last-name">Last Name</Label>
-              <Input
-                id="player-last-name"
-                value={playerForm.last_name}
-                onChange={(e) =>
-                  setPlayerForm((prev) => ({
+              <div className="space-y-2">
+                <Label htmlFor="player-last-name">Last Name</Label>
+                <Input
+                  id="player-last-name"
+                  value={playerForm.last_name}
+                  onChange={(e) => setPlayerForm((prev) => ({
                     ...prev,
                     last_name: e.target.value,
-                  }))
-                }
-              />
-            </div>
+                  }))} />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="player-dob">Date of Birth</Label>
-              <Input
-                id="player-dob"
-                type="date"
-                value={playerForm.date_of_birth}
-                onChange={(e) =>
-                  setPlayerForm((prev) => ({
+              <div className="space-y-2">
+                <Label htmlFor="player-dob">Date of Birth</Label>
+                <Input
+                  id="player-dob"
+                  type="date"
+                  value={playerForm.date_of_birth}
+                  onChange={(e) => setPlayerForm((prev) => ({
                     ...prev,
                     date_of_birth: e.target.value,
-                  }))
-                }
-              />
-            </div>
+                  }))} />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="player-nationality">Nationality</Label>
-              <Input
-                id="player-nationality"
-                value={playerForm.nationality}
-                onChange={(e) =>
-                  setPlayerForm((prev) => ({
+              <div className="space-y-2">
+                <Label htmlFor="player-nationality">Nationality</Label>
+                <Input
+                  id="player-nationality"
+                  value={playerForm.nationality}
+                  onChange={(e) => setPlayerForm((prev) => ({
                     ...prev,
                     nationality: e.target.value,
-                  }))
-                }
-              />
-            </div>
+                  }))} />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="player-ranking">Ranking</Label>
-              <Input
-                id="player-ranking"
-                type="number"
-                value={playerForm.ranking}
-                onChange={(e) =>
-                  setPlayerForm((prev) => ({
+              <div className="space-y-2">
+                <Label htmlFor="player-ranking">Ranking</Label>
+                <Input
+                  id="player-ranking"
+                  type="number"
+                  value={playerForm.ranking}
+                  onChange={(e) => setPlayerForm((prev) => ({
                     ...prev,
                     ranking: e.target.value,
-                  }))
-                }
-              />
-            </div>
+                  }))} />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="player-gender">Gender</Label>
-              <Input
-                id="player-gender"
-                value={playerForm.gender}
-                onChange={(e) =>
-                  setPlayerForm((prev) => ({ ...prev, gender: e.target.value }))
-                }
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="player-gender">Gender</Label>
+                <Input
+                  id="player-gender"
+                  value={playerForm.gender}
+                  onChange={(e) => setPlayerForm((prev) => ({ ...prev, gender: e.target.value }))} />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="player-age">Age</Label>
-              <Input
-                id="player-age"
-                type="number"
-                value={playerForm.age}
-                onChange={(e) =>
-                  setPlayerForm((prev) => ({ ...prev, age: e.target.value }))
-                }
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="player-age">Age</Label>
+                <Input
+                  id="player-age"
+                  type="number"
+                  value={playerForm.age}
+                  onChange={(e) => setPlayerForm((prev) => ({ ...prev, age: e.target.value }))} />
+              </div>
 
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="player-tennis-level">Tennis Level</Label>
-              <Input
-                id="player-tennis-level"
-                value={playerForm.tennis_level}
-                onChange={(e) =>
-                  setPlayerForm((prev) => ({
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="player-tennis-level">Tennis Level</Label>
+                <Input
+                  id="player-tennis-level"
+                  value={playerForm.tennis_level}
+                  onChange={(e) => setPlayerForm((prev) => ({
                     ...prev,
                     tennis_level: e.target.value,
-                  }))
-                }
-              />
-            </div>
+                  }))} />
+              </div>
 
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="player-bio">Bio</Label>
-              <Textarea
-                id="player-bio"
-                value={playerForm.bio}
-                onChange={(e) =>
-                  setPlayerForm((prev) => ({ ...prev, bio: e.target.value }))
-                }
-              />
-            </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="player-bio">Bio</Label>
+                <Textarea
+                  id="player-bio"
+                  value={playerForm.bio}
+                  onChange={(e) => setPlayerForm((prev) => ({ ...prev, bio: e.target.value }))} />
+              </div>
 
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="player-image-url">Profile Image URL</Label>
-              <Input
-                id="player-image-url"
-                value={playerForm.profile_image_url}
-                onChange={(e) =>
-                  setPlayerForm((prev) => ({
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="player-image-url">Profile Image URL</Label>
+                <Input
+                  id="player-image-url"
+                  value={playerForm.profile_image_url}
+                  onChange={(e) => setPlayerForm((prev) => ({
                     ...prev,
                     profile_image_url: e.target.value,
-                  }))
-                }
-              />
+                  }))} />
+              </div>
             </div>
-          </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              variant="outline"
-              onClick={() => setIsPlayerDialogOpen(false)}
-              disabled={isSavingPlayer}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleSavePlayer} disabled={isSavingPlayer}>
-              {isSavingPlayer ? "Saving..." : "Save"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsPlayerDialogOpen(false)}
+                disabled={isSavingPlayer}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleSavePlayer} disabled={isSavingPlayer}>
+                {isSavingPlayer ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog><Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>
+                {isEditingMatch ? "Edit Match" : "Add Match"}
+              </DialogTitle>
+              <DialogDescription>
+                Configure matchup details and scheduling.
+              </DialogDescription>
+            </DialogHeader>
 
-      <Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              {isEditingMatch ? "Edit Match" : "Add Match"}
-            </DialogTitle>
-            <DialogDescription>
-              Configure matchup details and scheduling.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="match-player1">Player 1</Label>
-              <select
-                id="match-player1"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={matchForm.player1_id}
-                onChange={(e) =>
-                  setMatchForm((prev) => ({
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="match-player1">Player 1</Label>
+                <select
+                  id="match-player1"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={matchForm.player1_id}
+                  onChange={(e) => setMatchForm((prev) => ({
                     ...prev,
                     player1_id: e.target.value,
-                  }))
-                }
-              >
-                <option value="">Select Player 1</option>
-                {players.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+                  }))}
+                >
+                  <option value="">Select Player 1</option>
+                  {players.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="match-player2">Player 2</Label>
-              <select
-                id="match-player2"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={matchForm.player2_id}
-                onChange={(e) =>
-                  setMatchForm((prev) => ({
+              <div className="space-y-2">
+                <Label htmlFor="match-player2">Player 2</Label>
+                <select
+                  id="match-player2"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={matchForm.player2_id}
+                  onChange={(e) => setMatchForm((prev) => ({
                     ...prev,
                     player2_id: e.target.value,
-                  }))
-                }
-              >
-                <option value="">Select Player 2</option>
-                {players.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+                  }))}
+                >
+                  <option value="">Select Player 2</option>
+                  {players.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="match-round">Round</Label>
-              <Input
-                id="match-round"
-                value={matchForm.round}
-                onChange={(e) =>
-                  setMatchForm((prev) => ({ ...prev, round: e.target.value }))
-                }
-                placeholder="e.g. Quarterfinal"
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="match-round">Round</Label>
+                <Input
+                  id="match-round"
+                  value={matchForm.round}
+                  onChange={(e) => setMatchForm((prev) => ({ ...prev, round: e.target.value }))}
+                  placeholder="e.g. Quarterfinal" />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="match-court">Court</Label>
-              <Input
-                id="match-court"
-                value={matchForm.court_id}
-                onChange={(e) =>
-                  setMatchForm((prev) => ({
+              <div className="space-y-2">
+                <Label htmlFor="match-court">Court</Label>
+                <Input
+                  id="match-court"
+                  value={matchForm.court_id}
+                  onChange={(e) => setMatchForm((prev) => ({
                     ...prev,
                     court_id: e.target.value,
-                  }))
-                }
-                placeholder="Court ID"
-              />
-            </div>
+                  }))}
+                  placeholder="Court ID" />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="match-status">Status</Label>
-              <select
-                id="match-status"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={matchForm.status}
-                onChange={(e) =>
-                  setMatchForm((prev) => ({ ...prev, status: e.target.value }))
-                }
-              >
-                <option value="scheduled">scheduled</option>
-                <option value="live">live</option>
-                <option value="completed">completed</option>
-              </select>
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="match-status">Status</Label>
+                <select
+                  id="match-status"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={matchForm.status}
+                  onChange={(e) => setMatchForm((prev) => ({ ...prev, status: e.target.value }))}
+                >
+                  <option value="scheduled">scheduled</option>
+                  <option value="live">live</option>
+                  <option value="completed">completed</option>
+                </select>
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="match-time">Scheduled Time</Label>
-              <Input
-                id="match-time"
-                type="datetime-local"
-                value={matchForm.scheduled_time}
-                onChange={(e) =>
-                  setMatchForm((prev) => ({
+              <div className="space-y-2">
+                <Label htmlFor="match-time">Scheduled Time</Label>
+                <Input
+                  id="match-time"
+                  type="datetime-local"
+                  value={matchForm.scheduled_time}
+                  onChange={(e) => setMatchForm((prev) => ({
                     ...prev,
                     scheduled_time: e.target.value,
-                  }))
-                }
-              />
+                  }))} />
+              </div>
             </div>
-          </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              variant="outline"
-              onClick={() => setIsMatchDialogOpen(false)}
-              disabled={isSavingMatch}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleSaveMatch} disabled={isSavingMatch}>
-              {isSavingMatch ? "Saving..." : "Save"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsMatchDialogOpen(false)}
+                disabled={isSavingMatch}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleSaveMatch} disabled={isSavingMatch}>
+                {isSavingMatch ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog><Dialog
+          open={isCompleteDialogOpen}
+          onOpenChange={setIsCompleteDialogOpen}
+        >
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Complete Match</DialogTitle>
+              <DialogDescription>
+                Enter final sets and games for both players.
+              </DialogDescription>
+            </DialogHeader>
 
-      <Dialog
-        open={isCompleteDialogOpen}
-        onOpenChange={setIsCompleteDialogOpen}
-      >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Complete Match</DialogTitle>
-            <DialogDescription>
-              Enter final sets and games for both players.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid grid-cols-2 gap-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="complete-p1-sets">Player 1 Sets</Label>
-              <Input
-                id="complete-p1-sets"
-                type="number"
-                value={completeForm.player1_sets}
-                onChange={(e) =>
-                  setCompleteForm((prev) => ({
+            <div className="grid grid-cols-2 gap-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="complete-p1-sets">Player 1 Sets</Label>
+                <Input
+                  id="complete-p1-sets"
+                  type="number"
+                  value={completeForm.player1_sets}
+                  onChange={(e) => setCompleteForm((prev) => ({
                     ...prev,
                     player1_sets: e.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="complete-p2-sets">Player 2 Sets</Label>
-              <Input
-                id="complete-p2-sets"
-                type="number"
-                value={completeForm.player2_sets}
-                onChange={(e) =>
-                  setCompleteForm((prev) => ({
+                  }))} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="complete-p2-sets">Player 2 Sets</Label>
+                <Input
+                  id="complete-p2-sets"
+                  type="number"
+                  value={completeForm.player2_sets}
+                  onChange={(e) => setCompleteForm((prev) => ({
                     ...prev,
                     player2_sets: e.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="complete-p1-games">Player 1 Games</Label>
-              <Input
-                id="complete-p1-games"
-                type="number"
-                value={completeForm.player1_games}
-                onChange={(e) =>
-                  setCompleteForm((prev) => ({
+                  }))} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="complete-p1-games">Player 1 Games</Label>
+                <Input
+                  id="complete-p1-games"
+                  type="number"
+                  value={completeForm.player1_games}
+                  onChange={(e) => setCompleteForm((prev) => ({
                     ...prev,
                     player1_games: e.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="complete-p2-games">Player 2 Games</Label>
-              <Input
-                id="complete-p2-games"
-                type="number"
-                value={completeForm.player2_games}
-                onChange={(e) =>
-                  setCompleteForm((prev) => ({
+                  }))} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="complete-p2-games">Player 2 Games</Label>
+                <Input
+                  id="complete-p2-games"
+                  type="number"
+                  value={completeForm.player2_games}
+                  onChange={(e) => setCompleteForm((prev) => ({
                     ...prev,
                     player2_games: e.target.value,
-                  }))
-                }
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              variant="outline"
-              onClick={() => setIsCompleteDialogOpen(false)}
-              disabled={isCompletingMatch}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleCompleteMatch} disabled={isCompletingMatch}>
-              {isCompletingMatch ? "Saving..." : "Save"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={isTournamentDialogOpen}
-        onOpenChange={setIsTournamentDialogOpen}
-      >
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              {isEditingTournament ? "Edit Tournament" : "Add Tournament"}
-            </DialogTitle>
-            <DialogDescription>
-              Create or update tournament metadata.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="tournament-id">Tournament ID</Label>
-              <Input
-                id="tournament-id"
-                value={tournamentForm.id}
-                disabled
-                placeholder="Auto-generated"
-              />
+                  }))} />
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="tournament-name">Name</Label>
-              <Input
-                id="tournament-name"
-                value={tournamentForm.name}
-                onChange={(e) =>
-                  setTournamentForm((prev) => ({
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsCompleteDialogOpen(false)}
+                disabled={isCompletingMatch}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleCompleteMatch} disabled={isCompletingMatch}>
+                {isCompletingMatch ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog><Dialog
+          open={isTournamentDialogOpen}
+          onOpenChange={setIsTournamentDialogOpen}
+        >
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>
+                {isEditingTournament ? "Edit Tournament" : "Add Tournament"}
+              </DialogTitle>
+              <DialogDescription>
+                Create or update tournament metadata.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="tournament-id">Tournament ID</Label>
+                <Input
+                  id="tournament-id"
+                  value={tournamentForm.id}
+                  disabled
+                  placeholder="Auto-generated" />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="tournament-name">Name</Label>
+                <Input
+                  id="tournament-name"
+                  value={tournamentForm.name}
+                  onChange={(e) => setTournamentForm((prev) => ({
                     ...prev,
                     name: e.target.value,
-                  }))
-                }
-              />
-            </div>
+                  }))} />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="tournament-location">Location</Label>
-              <Input
-                id="tournament-location"
-                value={tournamentForm.location}
-                onChange={(e) =>
-                  setTournamentForm((prev) => ({
+              <div className="space-y-2">
+                <Label htmlFor="tournament-location">Location</Label>
+                <Input
+                  id="tournament-location"
+                  value={tournamentForm.location}
+                  onChange={(e) => setTournamentForm((prev) => ({
                     ...prev,
                     location: e.target.value,
-                  }))
-                }
-              />
-            </div>
+                  }))} />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="tournament-start-date">Start Date</Label>
-              <Input
-                id="tournament-start-date"
-                type="date"
-                value={tournamentForm.start_date}
-                onChange={(e) =>
-                  setTournamentForm((prev) => ({
+              <div className="space-y-2">
+                <Label htmlFor="tournament-start-date">Start Date</Label>
+                <Input
+                  id="tournament-start-date"
+                  type="date"
+                  value={tournamentForm.start_date}
+                  onChange={(e) => setTournamentForm((prev) => ({
                     ...prev,
                     start_date: e.target.value,
-                  }))
-                }
-              />
-            </div>
+                  }))} />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="tournament-end-date">End Date</Label>
-              <Input
-                id="tournament-end-date"
-                type="date"
-                value={tournamentForm.end_date}
-                onChange={(e) =>
-                  setTournamentForm((prev) => ({
+              <div className="space-y-2">
+                <Label htmlFor="tournament-end-date">End Date</Label>
+                <Input
+                  id="tournament-end-date"
+                  type="date"
+                  value={tournamentForm.end_date}
+                  onChange={(e) => setTournamentForm((prev) => ({
                     ...prev,
                     end_date: e.target.value,
-                  }))
-                }
-              />
-            </div>
+                  }))} />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="tournament-status">Status</Label>
-              <select
-                id="tournament-status"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={tournamentForm.status}
-                onChange={(e) =>
-                  setTournamentForm((prev) => ({
+              <div className="space-y-2">
+                <Label htmlFor="tournament-status">Status</Label>
+                <select
+                  id="tournament-status"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={tournamentForm.status}
+                  onChange={(e) => setTournamentForm((prev) => ({
                     ...prev,
                     status: e.target.value,
-                  }))
-                }
-              >
-                <option value="scheduled">scheduled</option>
-                <option value="live">live</option>
-                <option value="completed">completed</option>
-              </select>
-            </div>
+                  }))}
+                >
+                  <option value="scheduled">scheduled</option>
+                  <option value="live">live</option>
+                  <option value="completed">completed</option>
+                </select>
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="tournament-surface">Surface</Label>
-              <select
-                id="tournament-surface"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={tournamentForm.surface}
-                onChange={(e) =>
-                  setTournamentForm((prev) => ({
+              <div className="space-y-2">
+                <Label htmlFor="tournament-surface">Surface</Label>
+                <select
+                  id="tournament-surface"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={tournamentForm.surface}
+                  onChange={(e) => setTournamentForm((prev) => ({
                     ...prev,
                     surface: e.target.value,
-                  }))
-                }
-              >
-                <option value="">Select surface</option>
-                <option value="Hard">Hard</option>
-                <option value="Clay">Clay</option>
-                <option value="Grass">Grass</option>
-              </select>
-            </div>
-
-            {/* ── Visual Customisation — stored in DB columns banner_image and accent_color ── */}
-            <div className="space-y-2 md:col-span-2 border-t pt-4">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                Homepage Appearance
-              </p>
-            </div>
-
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="tournament-banner">Background Image</Label>
-              <div className="flex items-center gap-3">
-                <label
-                  htmlFor="tournament-banner"
-                  className="flex-1 flex items-center gap-2 h-10 px-3 rounded-md border border-input bg-background text-sm cursor-pointer hover:bg-muted/50 transition-colors"
+                  }))}
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="text-muted-foreground flex-shrink-0"
+                  <option value="">Select surface</option>
+                  <option value="Hard">Hard</option>
+                  <option value="Clay">Clay</option>
+                  <option value="Grass">Grass</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="tournament-director">Tournament Director</Label>
+                <select
+                  id="tournament-director"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={tournamentForm.director_id}
+                  onChange={(e) => setTournamentForm((prev) => ({
+                    ...prev,
+                    director_id: e.target.value,
+                  }))}
+                >
+                  <option value="">Unassigned</option>
+                  {directors.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.first_name} {d.last_name} ({d.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* ── Visual Customisation — stored in DB columns banner_image and accent_color ── */}
+              <div className="space-y-2 md:col-span-2 border-t pt-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                  Homepage Appearance
+                </p>
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="tournament-banner">Background Image</Label>
+                <div className="flex items-center gap-3">
+                  <label
+                    htmlFor="tournament-banner"
+                    className="flex-1 flex items-center gap-2 h-10 px-3 rounded-md border border-input bg-background text-sm cursor-pointer hover:bg-muted/50 transition-colors"
                   >
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="17 8 12 3 7 8" />
-                    <line x1="12" y1="3" x2="12" y2="15" />
-                  </svg>
-                  <span className="truncate text-muted-foreground">
-                    {tournamentForm.banner_image_url
-                      ? "Image selected ✓"
-                      : "Click to upload image…"}
-                  </span>
-                </label>
-                <input
-                  id="tournament-banner"
-                  type="file"
-                  accept="image/*"
-                  className="sr-only"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    const reader = new FileReader();
-                    reader.onload = (ev) => {
-                      const dataUrl = ev.target?.result as string;
-                      setTournamentForm((prev) => ({
-                        ...prev,
-                        banner_image_url: dataUrl,
-                      }));
-                    };
-                    reader.readAsDataURL(file);
-                  }}
-                />
-                {tournamentForm.banner_image_url && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setTournamentForm((prev) => ({
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-muted-foreground flex-shrink-0"
+                    >
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="17 8 12 3 7 8" />
+                      <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                    <span className="truncate text-muted-foreground">
+                      {tournamentForm.banner_image_url
+                        ? "Image selected ✓"
+                        : "Click to upload image…"}
+                    </span>
+                  </label>
+                  <input
+                    id="tournament-banner"
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (ev) => {
+                        const dataUrl = ev.target?.result as string;
+                        setTournamentForm((prev) => ({
+                          ...prev,
+                          banner_image_url: dataUrl,
+                        }));
+                      };
+                      reader.readAsDataURL(file);
+                    } } />
+                  {tournamentForm.banner_image_url && (
+                    <button
+                      type="button"
+                      onClick={() => setTournamentForm((prev) => ({
                         ...prev,
                         banner_image_url: "",
-                      }))
-                    }
-                    className="text-xs text-destructive hover:underline flex-shrink-0"
-                  >
-                    Remove
-                  </button>
+                      }))}
+                      className="text-xs text-destructive hover:underline flex-shrink-0"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                {tournamentForm.banner_image_url && (
+                  <div className="mt-2 rounded-md overflow-hidden border h-24 bg-muted">
+                    <img
+                      src={tournamentForm.banner_image_url}
+                      alt="Banner preview"
+                      className="w-full h-full object-cover" />
+                  </div>
                 )}
+                <p className="text-xs text-muted-foreground">
+                  Replaces the hero background on the homepage for this
+                  tournament.
+                </p>
               </div>
-              {tournamentForm.banner_image_url && (
-                <div className="mt-2 rounded-md overflow-hidden border h-24 bg-muted">
-                  <img
-                    src={tournamentForm.banner_image_url}
-                    alt="Banner preview"
-                    className="w-full h-full object-cover"
-                  />
+
+              <div className="space-y-2">
+                <Label htmlFor="tournament-accent">Accent Colour</Label>
+                <div className="flex items-center gap-3">
+                  <input
+                    id="tournament-accent"
+                    type="color"
+                    value={tournamentForm.accent_color}
+                    onChange={(e) => setTournamentForm((prev) => ({
+                      ...prev,
+                      accent_color: e.target.value,
+                    }))}
+                    className="h-10 w-14 cursor-pointer rounded-md border border-input bg-background p-1" />
+                  <Input
+                    value={tournamentForm.accent_color}
+                    onChange={(e) => setTournamentForm((prev) => ({
+                      ...prev,
+                      accent_color: e.target.value,
+                    }))}
+                    placeholder="#e91e8c"
+                    className="flex-1" />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Sets the pink/highlight colour used site-wide for this
+                  tournament.
+                </p>
+              </div>
+
+              {/* Live preview swatch */}
+              {tournamentForm.accent_color && (
+                <div className="space-y-1">
+                  <Label>Preview</Label>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="inline-block w-6 h-6 rounded-full border"
+                      style={{ background: tournamentForm.accent_color }} />
+                    <span
+                      className="text-sm font-bold"
+                      style={{ color: tournamentForm.accent_color }}
+                    >
+                      Live Score · FINAL
+                    </span>
+                  </div>
                 </div>
               )}
-              <p className="text-xs text-muted-foreground">
-                Replaces the hero background on the homepage for this
-                tournament.
-              </p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="tournament-accent">Accent Colour</Label>
-              <div className="flex items-center gap-3">
-                <input
-                  id="tournament-accent"
-                  type="color"
-                  value={tournamentForm.accent_color}
-                  onChange={(e) =>
-                    setTournamentForm((prev) => ({
-                      ...prev,
-                      accent_color: e.target.value,
-                    }))
-                  }
-                  className="h-10 w-14 cursor-pointer rounded-md border border-input bg-background p-1"
-                />
-                <Input
-                  value={tournamentForm.accent_color}
-                  onChange={(e) =>
-                    setTournamentForm((prev) => ({
-                      ...prev,
-                      accent_color: e.target.value,
-                    }))
-                  }
-                  placeholder="#e91e8c"
-                  className="flex-1"
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Sets the pink/highlight colour used site-wide for this
-                tournament.
-              </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsTournamentDialogOpen(false)}
+                disabled={isSavingTournament}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveTournament}
+                disabled={isSavingTournament}
+              >
+                {isSavingTournament ? "Saving..." : "Save"}
+              </Button>
             </div>
+          </DialogContent>
+        </Dialog><Dialog open={isGroupDialogOpen} onOpenChange={setIsGroupDialogOpen}>
+          <DialogContent className="max-w-xl">
+            <DialogHeader>
+              <DialogTitle>Create Group</DialogTitle>
+              <DialogDescription>
+                Set group level, capacity, and qualifier count.
+              </DialogDescription>
+            </DialogHeader>
 
-            {/* Live preview swatch */}
-            {tournamentForm.accent_color && (
-              <div className="space-y-1">
-                <Label>Preview</Label>
-                <div className="flex items-center gap-2">
-                  <span
-                    className="inline-block w-6 h-6 rounded-full border"
-                    style={{ background: tournamentForm.accent_color }}
-                  />
-                  <span
-                    className="text-sm font-bold"
-                    style={{ color: tournamentForm.accent_color }}
-                  >
-                    Live Score · FINAL
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              variant="outline"
-              onClick={() => setIsTournamentDialogOpen(false)}
-              disabled={isSavingTournament}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveTournament}
-              disabled={isSavingTournament}
-            >
-              {isSavingTournament ? "Saving..." : "Save"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isGroupDialogOpen} onOpenChange={setIsGroupDialogOpen}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Create Group</DialogTitle>
-            <DialogDescription>
-              Set group level, capacity, and qualifier count.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="group-designation">
-                Group Designation (Naming format)
-              </Label>
-              <div className="flex gap-2">
-                <select
-                  id="group-designation"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={groupForm.designation_type}
-                  onChange={(e) =>
-                    setGroupForm((prev) => ({
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="group-designation">
+                  Group Designation (Naming format)
+                </Label>
+                <div className="flex gap-2">
+                  <select
+                    id="group-designation"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={groupForm.designation_type}
+                    onChange={(e) => setGroupForm((prev) => ({
                       ...prev,
                       designation_type: e.target.value,
-                    }))
-                  }
-                >
-                  <option value="A">A</option>
-                  <option value="B">B</option>
-                  <option value="C">C</option>
-                  <option value="1">1</option>
-                  <option value="2">2</option>
-                  <option value="3">3</option>
-                  <option value="Custom">Custom (user-defined)</option>
-                </select>
-                {groupForm.designation_type === "Custom" && (
-                  <Input
-                    placeholder="Enter custom name"
-                    value={groupForm.custom_designation}
-                    onChange={(e) =>
-                      setGroupForm((prev) => ({
+                    }))}
+                  >
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="Custom">Custom (user-defined)</option>
+                  </select>
+                  {groupForm.designation_type === "Custom" && (
+                    <Input
+                      placeholder="Enter custom name"
+                      value={groupForm.custom_designation}
+                      onChange={(e) => setGroupForm((prev) => ({
                         ...prev,
                         custom_designation: e.target.value,
-                      }))
-                    }
-                  />
-                )}
+                      }))} />
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="group-gender">Group Gender</Label>
+                <select
+                  id="group-gender"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={groupForm.gender}
+                  onChange={(e) => setGroupForm((prev) => ({
+                    ...prev,
+                    gender: e.target.value as GroupForm["gender"],
+                  }))}
+                >
+                  <option value="Men">Men</option>
+                  <option value="Women">Women</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="group-type">Group Type</Label>
+                <select
+                  id="group-type"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={groupForm.group_type}
+                  onChange={(e) => setGroupForm((prev) => ({
+                    ...prev,
+                    group_type: e.target.value,
+                  }))}
+                >
+                  <option value="Singles">Singles</option>
+                  <option value="Doubles">Doubles</option>
+                  <option value="Mixed Doubles">Mixed Doubles</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="group-max-players">Max Players</Label>
+                <Input
+                  id="group-max-players"
+                  type="number"
+                  min={2}
+                  value={groupForm.max_players}
+                  onChange={(e) => setGroupForm((prev) => ({
+                    ...prev,
+                    max_players: e.target.value,
+                  }))} />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="group-qualifiers">Qualifiers</Label>
+                <Input
+                  id="group-qualifiers"
+                  type="number"
+                  min={1}
+                  value={groupForm.qualifiers_count}
+                  onChange={(e) => setGroupForm((prev) => ({
+                    ...prev,
+                    qualifiers_count: e.target.value,
+                  }))} />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="group-gender">Group Gender</Label>
-              <select
-                id="group-gender"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={groupForm.gender}
-                onChange={(e) =>
-                  setGroupForm((prev) => ({
-                    ...prev,
-                    gender: e.target.value as GroupForm["gender"],
-                  }))
-                }
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsGroupDialogOpen(false)}
+                disabled={isSavingGroup}
               >
-                <option value="Men">Men</option>
-                <option value="Women">Women</option>
-              </select>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveGroup} disabled={isSavingGroup}>
+                {isSavingGroup ? "Saving..." : "Save"}
+              </Button>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="group-type">Group Type</Label>
-              <select
-                id="group-type"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={groupForm.group_type}
-                onChange={(e) =>
-                  setGroupForm((prev) => ({
-                    ...prev,
-                    group_type: e.target.value,
-                  }))
-                }
-              >
-                <option value="Singles">Singles</option>
-                <option value="Doubles">Doubles</option>
-                <option value="Mixed Doubles">Mixed Doubles</option>
-              </select>
+          </DialogContent>
+        </Dialog><Dialog open={isTeamDialogOpen} onOpenChange={setIsTeamDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Create Doubles Team</DialogTitle>
+              <DialogDescription>
+                Pair two players to form a new team for Doubles groups.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label>Player 1</Label>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={teamForm.player1_id}
+                  onChange={(e) => setTeamForm({ ...teamForm, player1_id: e.target.value })}
+                >
+                  <option value="">Select a player...</option>
+                  {players.filter(p => !p.is_team).map((p) => (
+                    <option key={`p1-${p.id}`} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Player 2</Label>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={teamForm.player2_id}
+                  onChange={(e) => setTeamForm({ ...teamForm, player2_id: e.target.value })}
+                >
+                  <option value="">Select a player...</option>
+                  {players.filter(p => !p.is_team).map((p) => (
+                    <option key={`p2-${p.id}`} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Gender</Label>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={teamForm.gender}
+                    onChange={(e) => setTeamForm({ ...teamForm, gender: e.target.value })}
+                  >
+                    <option value="Men">Men</option>
+                    <option value="Women">Women</option>
+                    <option value="Mixed">Mixed</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Tennis Level</Label>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={teamForm.tennis_level}
+                    onChange={(e) => setTeamForm({ ...teamForm, tennis_level: e.target.value })}
+                  >
+                    <option value="Beginner">Beginner</option>
+                    <option value="Intermediate">Intermediate</option>
+                    <option value="Advanced">Advanced</option>
+                  </select>
+                </div>
+              </div>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="group-max-players">Max Players</Label>
-              <Input
-                id="group-max-players"
-                type="number"
-                min={2}
-                value={groupForm.max_players}
-                onChange={(e) =>
-                  setGroupForm((prev) => ({
-                    ...prev,
-                    max_players: e.target.value,
-                  }))
-                }
-              />
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setIsTeamDialogOpen(false)} disabled={isSavingTeam}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveTeam} disabled={isSavingTeam}>
+                {isSavingTeam ? "Creating..." : "Create Team"}
+              </Button>
             </div>
+          </DialogContent>
+        </Dialog>
 
-            <div className="space-y-2">
-              <Label htmlFor="group-qualifiers">Qualifiers</Label>
-              <Input
-                id="group-qualifiers"
-                type="number"
-                min={1}
-                value={groupForm.qualifiers_count}
-                onChange={(e) =>
-                  setGroupForm((prev) => ({
-                    ...prev,
-                    qualifiers_count: e.target.value,
-                  }))
-                }
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              variant="outline"
-              onClick={() => setIsGroupDialogOpen(false)}
-              disabled={isSavingGroup}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleSaveGroup} disabled={isSavingGroup}>
-              {isSavingGroup ? "Saving..." : "Save"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isTeamDialogOpen} onOpenChange={setIsTeamDialogOpen}>
+      {/* ── Create Director Credentials Dialog ── */}
+      <Dialog open={isCreateDirectorOpen} onOpenChange={setIsCreateDirectorOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Create Doubles Team</DialogTitle>
+            <DialogTitle>Create Director Credentials</DialogTitle>
             <DialogDescription>
-              Pair two players to form a new team for Doubles groups.
+              Create a login for a tournament director. They will only be able to manage their assigned tournament.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>Player 1</Label>
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={teamForm.player1_id}
-                onChange={(e) => setTeamForm({ ...teamForm, player1_id: e.target.value })}
-              >
-                <option value="">Select a player...</option>
-                {players.filter(p => !p.is_team).map((p) => (
-                  <option key={`p1-${p.id}`} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+              <Label htmlFor="director-email">Email</Label>
+              <Input
+                id="director-email"
+                type="email"
+                placeholder="director@example.com"
+                value={directorForm.email}
+                onChange={(e) => setDirectorForm({ ...directorForm, email: e.target.value })}
+              />
             </div>
             <div className="space-y-2">
-              <Label>Player 2</Label>
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={teamForm.player2_id}
-                onChange={(e) => setTeamForm({ ...teamForm, player2_id: e.target.value })}
-              >
-                <option value="">Select a player...</option>
-                {players.filter(p => !p.is_team).map((p) => (
-                  <option key={`p2-${p.id}`} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+              <Label htmlFor="director-password">Password</Label>
+              <Input
+                id="director-password"
+                type="password"
+                placeholder="Min. 6 characters"
+                value={directorForm.password}
+                onChange={(e) => setDirectorForm({ ...directorForm, password: e.target.value })}
+              />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Gender</Label>
-                <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={teamForm.gender}
-                  onChange={(e) => setTeamForm({ ...teamForm, gender: e.target.value })}
-                >
-                  <option value="Men">Men</option>
-                  <option value="Women">Women</option>
-                  <option value="Mixed">Mixed</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label>Tennis Level</Label>
-                <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={teamForm.tennis_level}
-                  onChange={(e) => setTeamForm({ ...teamForm, tennis_level: e.target.value })}
-                >
-                  <option value="Beginner">Beginner</option>
-                  <option value="Intermediate">Intermediate</option>
-                  <option value="Advanced">Advanced</option>
-                </select>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="director-tournament">Assign Tournament</Label>
+              <Select
+                value={directorForm.tournament_id}
+                onValueChange={(val) => setDirectorForm({ ...directorForm, tournament_id: val })}
+              >
+                <SelectTrigger id="director-tournament">
+                  <SelectValue placeholder="Select a tournament" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tournaments.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                      {t.director_id && (
+                        <span className="ml-2 text-xs text-muted-foreground">(has director)</span>
+                      )}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setIsTeamDialogOpen(false)} disabled={isSavingTeam}>
+            <Button variant="outline" onClick={() => setIsCreateDirectorOpen(false)} disabled={isCreatingDirector}>
               Cancel
             </Button>
-            <Button onClick={handleSaveTeam} disabled={isSavingTeam}>
-              {isSavingTeam ? "Creating..." : "Create Team"}
+            <Button onClick={handleCreateDirector} disabled={isCreatingDirector}>
+              {isCreatingDirector ? "Creating…" : "Create Director"}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── Create Umpire Credentials Dialog ── */}
+      <Dialog open={isCreateUmpireOpen} onOpenChange={setIsCreateUmpireOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Umpire Credentials</DialogTitle>
+            <DialogDescription>
+              Create a login for an umpire tied to a specific tournament. They will only see matches for that tournament.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="umpire-email">Email</Label>
+              <Input
+                id="umpire-email"
+                type="email"
+                placeholder="umpire@example.com"
+                value={umpireForm.email}
+                onChange={(e) => setUmpireForm({ ...umpireForm, email: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="umpire-password">Password</Label>
+              <Input
+                id="umpire-password"
+                type="password"
+                placeholder="Min. 6 characters"
+                value={umpireForm.password}
+                onChange={(e) => setUmpireForm({ ...umpireForm, password: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="umpire-tournament">Tournament</Label>
+              <Select
+                value={umpireForm.tournament_id}
+                onValueChange={(val) => setUmpireForm({ ...umpireForm, tournament_id: val })}
+              >
+                <SelectTrigger id="umpire-tournament">
+                  <SelectValue placeholder="Select a tournament" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tournaments.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setIsCreateUmpireOpen(false)} disabled={isCreatingUmpire}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateUmpire} disabled={isCreatingUmpire}>
+              {isCreatingUmpire ? "Creating…" : "Create Umpire"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
