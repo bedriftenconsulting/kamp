@@ -9,6 +9,10 @@ import (
 	"time"
 
 	"kamp/internal/config"
+	authHandler "kamp/internal/modules/auth/handler"
+	authMiddleware "kamp/internal/modules/auth/middleware"
+	authRepo "kamp/internal/modules/auth/repository"
+	authService "kamp/internal/modules/auth/service"
 	groupHandler "kamp/internal/modules/group/handler"
 	groupRepo "kamp/internal/modules/group/repository"
 	groupService "kamp/internal/modules/group/service"
@@ -25,10 +29,6 @@ import (
 	tournamentHandler "kamp/internal/modules/tournament/handler"
 	tournamentRepo "kamp/internal/modules/tournament/repository"
 	tournamentService "kamp/internal/modules/tournament/service"
-	authHandler "kamp/internal/modules/auth/handler"
-	authMiddleware "kamp/internal/modules/auth/middleware"
-	authRepo "kamp/internal/modules/auth/repository"
-	authService "kamp/internal/modules/auth/service"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -44,7 +44,10 @@ func main() {
 
 	// Connect DB
 	db := config.NewDB(cfg)
+	if db != nil {
 	defer db.Close()
+}
+	// defer db.Close()
 
 	// Run DB migrations only when explicitly enabled.
 	// Example: RUN_MIGRATIONS=true ./app
