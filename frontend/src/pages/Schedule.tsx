@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import ScoreCard from "@/components/matches/ScoreCard";
 import { Calendar, Trophy } from "lucide-react";
 import { API_V1_URL } from "@/lib/api-url";
+import { useTournament } from "@/components/tournament/TournamentContext";
 
 const PLAYOFF_ROUNDS = [
   "Round of 64",
@@ -14,13 +15,14 @@ const PLAYOFF_ROUNDS = [
 const rounds = ["All", ...PLAYOFF_ROUNDS];
 
 export default function Schedule() {
+  const { activeTournamentId, activeTournament } = useTournament();
   const [matches, setMatches] = useState<any[]>([]);
   const [selectedRound, setSelectedRound] = useState("All");
   const [loading, setLoading] = useState(true);
 
   const fetchMatches = async () => {
     try {
-      const savedId = localStorage.getItem("active_public_tournament_id") || "";
+      const savedId = activeTournamentId || "";
       const url = savedId ? `${API_V1_URL}/matches?tournament_id=${savedId}` : `${API_V1_URL}/matches`;
       const matchesRes = await fetch(url);
       const matchesData = await matchesRes.json();
@@ -78,8 +80,9 @@ export default function Schedule() {
         );
 
   useEffect(() => {
+    setLoading(true);
     fetchMatches();
-  }, []);
+  }, [activeTournamentId]);
 
   if (loading) {
     return <div className="p-10 text-center">Loading schedule...</div>;
@@ -87,10 +90,13 @@ export default function Schedule() {
 
   return (
     <div className="container py-8">
-      <div className="flex items-center gap-3 mb-8">
+      <div className="flex items-center gap-3 mb-2">
         <Calendar size={28} className="text-primary" />
         <h1 className="text-3xl font-black">Match Schedule</h1>
       </div>
+      {activeTournament && (
+        <p className="text-sm text-muted-foreground mb-6">{activeTournament.name}</p>
+      )}
 
       {/* Round Filter */}
       <div className="flex flex-wrap gap-2 mb-8">

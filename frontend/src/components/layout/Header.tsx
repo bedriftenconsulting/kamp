@@ -1,7 +1,8 @@
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X, LogOut, LayoutDashboard, ShieldCheck, User } from "lucide-react";
+import { Menu, X, LogOut, LayoutDashboard, ShieldCheck, ChevronDown, Trophy } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/components/auth/AuthContext";
+import { useTournament } from "@/components/tournament/TournamentContext";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -26,6 +27,7 @@ const navItems = [
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
+  const { tournaments, activeTournament, setActiveTournamentId } = useTournament();
   const { user, logout, isAuthenticated } = (() => {
     // Handling useAuth being used potentially outside Provider during dev/test
     try {
@@ -103,6 +105,42 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-2">
+          {/* Tournament Selector */}
+          {tournaments.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-sm bg-primary-foreground/10 text-primary-foreground/90 hover:bg-primary-foreground/20 transition-colors max-w-[180px]"
+                >
+                  <Trophy size={12} className="shrink-0 text-secondary" />
+                  <span className="truncate">
+                    {activeTournament?.name ?? "Select Tournament"}
+                  </span>
+                  <ChevronDown size={12} className="shrink-0 opacity-60" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
+                  Switch Tournament
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {tournaments.map((t) => (
+                  <DropdownMenuItem
+                    key={t.id}
+                    onClick={() => setActiveTournamentId(t.id)}
+                    className={`text-sm cursor-pointer ${t.id === activeTournament?.id ? "font-bold" : ""}`}
+                  >
+                    {t.id === activeTournament?.id && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-secondary mr-2 inline-block" />
+                    )}
+                    {t.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
           {isAuthenticated && user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

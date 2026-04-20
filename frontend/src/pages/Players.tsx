@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Users, TrendingUp } from "lucide-react";
 import { API_V1_URL } from "@/lib/api-url";
+import { useTournament } from "@/components/tournament/TournamentContext";
 
 export default function Players() {
+  const { activeTournamentId, activeTournament } = useTournament();
   const [players, setPlayers] = useState<any[]>([]);
   const [matches, setMatches] = useState<any[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -48,7 +50,7 @@ export default function Players() {
 
   const fetchData = async () => {
     try {
-      const savedId = localStorage.getItem("active_public_tournament_id") || "";
+      const savedId = activeTournamentId || "";
       const pUrl = savedId ? `${API_V1_URL}/players?tournament_id=${savedId}` : `${API_V1_URL}/players`;
       const mUrl = savedId ? `${API_V1_URL}/matches?tournament_id=${savedId}` : `${API_V1_URL}/matches`;
 
@@ -98,8 +100,10 @@ export default function Players() {
   };
 
   useEffect(() => {
+    setLoading(true);
+    setSelected(null);
     fetchData();
-  }, []);
+  }, [activeTournamentId]);
 
   if (loading) {
     return <div className="p-10 text-center">Loading players...</div>;
@@ -107,10 +111,13 @@ export default function Players() {
 
   return (
     <div className="container py-8">
-      <div className="flex items-center gap-3 mb-8">
+      <div className="flex items-center gap-3 mb-2">
         <Users size={28} className="text-primary" />
         <h1 className="text-3xl font-black">Players</h1>
       </div>
+      {activeTournament && (
+        <p className="text-sm text-muted-foreground mb-6">{activeTournament.name}</p>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Player Grid */}

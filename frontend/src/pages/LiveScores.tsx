@@ -3,14 +3,16 @@ import ScoreCard from "@/components/matches/ScoreCard";
 import LiveScoreCard from "@/components/matches/LiveScoreCard";
 import { Zap } from "lucide-react";
 import { API_V1_URL } from "@/lib/api-url";
+import { useTournament } from "@/components/tournament/TournamentContext";
 
 export default function LiveScores() {
+  const { activeTournamentId, activeTournament } = useTournament();
   const [matches, setMatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchMatches = async () => {
     try {
-      const savedId = localStorage.getItem("active_public_tournament_id") || "";
+      const savedId = activeTournamentId || "";
       const url = savedId ? `${API_V1_URL}/matches?tournament_id=${savedId}` : `${API_V1_URL}/matches`;
       const res = await fetch(url);
       const data = await res.json();
@@ -53,12 +55,12 @@ export default function LiveScores() {
   };
 
   useEffect(() => {
+    setLoading(true);
     fetchMatches();
 
-    // 🔥 Auto-refresh every 10s (important for live)
     const interval = setInterval(fetchMatches, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [activeTournamentId]);
 
   // ✅ Filters
   const liveMatches = matches.filter((m) => m.status === "live");
@@ -70,10 +72,13 @@ export default function LiveScores() {
 
   return (
     <div className="container py-8">
-      <div className="flex items-center gap-3 mb-8">
+      <div className="flex items-center gap-3 mb-2">
         <Zap size={28} className="text-secondary" />
         <h1 className="text-3xl font-black">Live Scores</h1>
       </div>
+      {activeTournament && (
+        <p className="text-sm text-muted-foreground mb-6">{activeTournament.name}</p>
+      )}
 
       {/* LIVE MATCHES */}
       {liveMatches.length > 0 ? (

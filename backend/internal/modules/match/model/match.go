@@ -13,8 +13,9 @@ type Match struct {
 	Status        string     `json:"status"`
 	WinnerID      *string    `json:"winner_id"`
 	UmpireID      *string    `json:"umpire_id"`
-	NextMatchID   *string    `json:"next_match_id"`
-	BracketPosition *int     `json:"bracket_position"`
+	NextMatchID     *string `json:"next_match_id"`
+	BracketPosition *int    `json:"bracket_position"`
+	BracketName     *string `json:"bracket_name,omitempty"`
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
 

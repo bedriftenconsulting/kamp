@@ -2,14 +2,16 @@ import { useEffect, useState } from "react";
 import ScoreCard from "@/components/matches/ScoreCard";
 import { Trophy } from "lucide-react";
 import { API_V1_URL } from "@/lib/api-url";
+import { useTournament } from "@/components/tournament/TournamentContext";
 
 export default function Results() {
+  const { activeTournamentId, activeTournament } = useTournament();
   const [matches, setMatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchMatches = async () => {
     try {
-      const savedId = localStorage.getItem("active_public_tournament_id") || "";
+      const savedId = activeTournamentId || "";
       const url = savedId ? `${API_V1_URL}/matches?tournament_id=${savedId}` : `${API_V1_URL}/matches`;
       const res = await fetch(url);
       const data = await res.json();
@@ -52,8 +54,9 @@ export default function Results() {
   };
 
   useEffect(() => {
+    setLoading(true);
     fetchMatches();
-  }, []);
+  }, [activeTournamentId]);
 
   // ✅ Only completed matches
   const completed = matches.filter((m) => m.status === "completed");
@@ -64,10 +67,13 @@ export default function Results() {
 
   return (
     <div className="container py-8">
-      <div className="flex items-center gap-3 mb-8">
+      <div className="flex items-center gap-3 mb-2">
         <Trophy size={28} className="text-primary" />
         <h1 className="text-3xl font-black">Results</h1>
       </div>
+      {activeTournament && (
+        <p className="text-sm text-muted-foreground mb-6">{activeTournament.name}</p>
+      )}
 
       {completed.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

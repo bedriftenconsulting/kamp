@@ -18,6 +18,7 @@ import NotFound from "./pages/NotFound";
 import PublicLayout from "./components/layout/PublicLayout";
 import { AuthProvider } from "./components/auth/AuthContext";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
+import { TournamentProvider } from "./components/tournament/TournamentContext";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +27,7 @@ const App = () => (
     <TooltipProvider>
       <BrowserRouter>
         <AuthProvider>
+          <TournamentProvider>
           <Toaster />
           <Sonner />
           <Routes>
@@ -67,6 +69,7 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>
+          </TournamentProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

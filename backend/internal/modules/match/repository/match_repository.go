@@ -18,8 +18,8 @@ func NewMatchRepository(db *pgxpool.Pool) *MatchRepository {
 
 func (r *MatchRepository) Create(ctx context.Context, m *model.Match) error {
 	query := `
-	INSERT INTO matches (tournament_id, player1_id, player2_id, court_id, round, scheduled_time, status, next_match_id, bracket_position)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	INSERT INTO matches (tournament_id, player1_id, player2_id, court_id, round, scheduled_time, status, next_match_id, bracket_position, bracket_name)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	RETURNING id, created_at, updated_at
 	`
 
@@ -33,6 +33,7 @@ func (r *MatchRepository) Create(ctx context.Context, m *model.Match) error {
 		m.Status,
 		m.NextMatchID,
 		m.BracketPosition,
+		m.BracketName,
 	).Scan(&m.ID, &m.CreatedAt, &m.UpdatedAt)
 }
 
@@ -51,6 +52,7 @@ func (r *MatchRepository) GetAll(ctx context.Context, tournamentID string) ([]mo
 		m.umpire_id,
 		m.next_match_id,
 		m.bracket_position,
+		m.bracket_name,
 		m.created_at,
 		m.updated_at,
 		COALESCE(p1.first_name || ' ' || p1.last_name, 'TBD') AS player1_name,
@@ -99,6 +101,7 @@ func (r *MatchRepository) GetAll(ctx context.Context, tournamentID string) ([]mo
 			&m.UmpireID,
 			&m.NextMatchID,
 			&m.BracketPosition,
+			&m.BracketName,
 			&m.CreatedAt,
 			&m.UpdatedAt,
 			&m.Player1Name,
@@ -136,8 +139,9 @@ func (r *MatchRepository) Update(ctx context.Context, m *model.Match) error {
 		status = $7,
 		next_match_id = $8,
 		bracket_position = $9,
+		bracket_name = $10,
 		updated_at = NOW()
-	WHERE id = $10
+	WHERE id = $11
 	`
 
 	_, err := r.db.Exec(ctx, query,
@@ -150,6 +154,7 @@ func (r *MatchRepository) Update(ctx context.Context, m *model.Match) error {
 		m.Status,
 		m.NextMatchID,
 		m.BracketPosition,
+		m.BracketName,
 		m.ID,
 	)
 	return err
@@ -157,15 +162,15 @@ func (r *MatchRepository) Update(ctx context.Context, m *model.Match) error {
 
 func (r *MatchRepository) GetByID(ctx context.Context, matchID string) (*model.Match, error) {
 	query := `
-	SELECT id, tournament_id, player1_id, player2_id, court_id, round, scheduled_time, status, winner_id, umpire_id, next_match_id, bracket_position, created_at, updated_at
+	SELECT id, tournament_id, player1_id, player2_id, court_id, round, scheduled_time, status, winner_id, umpire_id, next_match_id, bracket_position, bracket_name, created_at, updated_at
 	FROM matches
 	WHERE id = $1
 	`
 	var m model.Match
 	err := r.db.QueryRow(ctx, query, matchID).Scan(
-		&m.ID, &m.TournamentID, &m.Player1ID, &m.Player2ID, &m.CourtID, &m.Round, 
-		&m.ScheduledTime, &m.Status, &m.WinnerID, &m.UmpireID, 
-		&m.NextMatchID, &m.BracketPosition, &m.CreatedAt, &m.UpdatedAt,
+		&m.ID, &m.TournamentID, &m.Player1ID, &m.Player2ID, &m.CourtID, &m.Round,
+		&m.ScheduledTime, &m.Status, &m.WinnerID, &m.UmpireID,
+		&m.NextMatchID, &m.BracketPosition, &m.BracketName, &m.CreatedAt, &m.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -295,9 +300,9 @@ func (r *MatchRepository) GetPlayerIDs(ctx context.Context, matchID string) (str
 	return p1ID, p2ID, nil
 }
 
-func (r *MatchRepository) DeleteBracketMatches(ctx context.Context, tournamentID string) error {
-	query := `DELETE FROM matches WHERE tournament_id = $1 AND bracket_position IS NOT NULL`
-	_, err := r.db.Exec(ctx, query, tournamentID)
+func (r *MatchRepository) DeleteBracketMatches(ctx context.Context, tournamentID string, bracketName string) error {
+	query := `DELETE FROM matches WHERE tournament_id = $1 AND bracket_position IS NOT NULL AND bracket_name = $2`
+	_, err := r.db.Exec(ctx, query, tournamentID, bracketName)
 	return err
 }
 

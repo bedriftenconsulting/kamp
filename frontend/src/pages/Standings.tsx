@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
 import { BarChart3 } from "lucide-react";
 import { API_V1_URL } from "@/lib/api-url";
+import { useTournament } from "@/components/tournament/TournamentContext";
 
 export default function Standings() {
+  const { activeTournamentId, activeTournament } = useTournament();
   const [groupStandings, setGroupStandings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchStandings = async () => {
+      setLoading(true);
       try {
-        const activeTournamentId = localStorage.getItem("active_public_tournament_id");
         let tournamentPlayerIds = new Set<string>();
 
         if (activeTournamentId) {
@@ -70,7 +72,7 @@ export default function Standings() {
     };
 
     fetchStandings();
-  }, []);
+  }, [activeTournamentId]);
 
   if (loading) {
     return <div className="p-10 text-center">Loading standings...</div>;
@@ -84,10 +86,13 @@ export default function Standings() {
 
   return (
     <div className="container py-8">
-      <div className="flex items-center gap-3 mb-8">
+      <div className="flex items-center gap-3 mb-2">
         <BarChart3 size={28} className="text-primary" />
         <h1 className="text-3xl font-black">Live Standings</h1>
       </div>
+      {activeTournament && (
+        <p className="text-sm text-muted-foreground mb-6">{activeTournament.name}</p>
+      )}
 
       {groupStandings.length === 0 ? (
         <div className="bg-card border rounded-md p-6 text-sm text-muted-foreground">

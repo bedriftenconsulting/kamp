@@ -498,6 +498,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
   const [bracketPlayers, setBracketPlayers] = useState<string[]>(
     Array(4).fill(""),
   );
+  const [bracketName, setBracketName] = useState<string>("Main Bracket");
   const [isGeneratingBracket, setIsGeneratingBracket] = useState(false);
 
   const [playoffQualifiers, setPlayoffQualifiers] = useState<any[]>([]);
@@ -523,18 +524,25 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
       );
       return;
     }
+    if (!bracketName.trim()) {
+      alert("Please enter a bracket name.");
+      return;
+    }
     if (bracketPlayers.some((p) => !p)) {
       alert("Please select players for all bracket slots.");
       return;
     }
 
-    const hasExistingBracket = matches.some(
+    const nameToCheck = bracketName.trim();
+    const hasExistingByName = matches.some(
       (m) =>
-        m.bracket_position !== null && m.tournament_id === globalTournamentId,
+        m.bracket_position !== null &&
+        m.tournament_id === globalTournamentId &&
+        m.bracket_name === nameToCheck,
     );
-    if (hasExistingBracket) {
+    if (hasExistingByName) {
       const confirmOverwrite = window.confirm(
-        "A playoff bracket already exists for this tournament. Generating a new one will DELETE the existing bracket and any score progress. Do you wish to continue?",
+        `A bracket named "${nameToCheck}" already exists. Regenerating it will delete its current match data. Continue?`,
       );
       if (!confirmOverwrite) return;
     }
@@ -545,10 +553,11 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
         `${API_V1_URL}/tournaments/${globalTournamentId}/bracket`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
           body: JSON.stringify({
             size: bracketSize,
             player_ids: bracketPlayers,
+            bracket_name: nameToCheck,
           }),
         },
       );
@@ -848,7 +857,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
 
       const res = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify(payload),
       });
 
@@ -889,7 +898,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
       
       const res = await fetch(`${API_V1_URL}/teams`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify({
           tournament_id: globalTournamentId,
           player1_id: teamForm.player1_id,
@@ -924,6 +933,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
     try {
       const res = await fetch(`${API_V1_URL}/players/${id}`, {
         method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` },
       });
 
       if (!res.ok) {
@@ -995,7 +1005,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
 
       const res = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify(payload),
       });
 
@@ -1021,6 +1031,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
     try {
       const res = await fetch(`${API_V1_URL}/matches/${id}`, {
         method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` },
       });
 
       if (!res.ok) {
@@ -1067,7 +1078,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
         `${API_V1_URL}/matches/${completeForm.match_id}/complete`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
           body: JSON.stringify(payload),
         },
       );
@@ -1290,7 +1301,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
     try {
       const res = await fetch(`${API_V1_URL}/tournaments/${globalTournamentId}/rules`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify(tournamentRules),
       });
       if (!res.ok) {
@@ -1387,7 +1398,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
 
       const res = await fetch(`${API_V1_URL}/groups`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify(payload),
       });
 
@@ -1423,7 +1434,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
         `${API_V1_URL}/groups/${selectedGroupId}/players`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
           body: JSON.stringify({ player_ids: groupPlayerSelections }),
         },
       );
@@ -1446,6 +1457,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
     try {
       const res = await fetch(`${API_V1_URL}/groups/${selectedGroupId}/lock`, {
         method: "POST",
+        headers: { "Authorization": `Bearer ${token}` },
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -1470,7 +1482,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
         `${API_V1_URL}/groups/${selectedGroupId}/matches/${matchID}/result`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
           body: JSON.stringify({
             player1_score: Number(input.p1 || 0),
             player2_score: Number(input.p2 || 0),
@@ -1500,6 +1512,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
     try {
       const res = await fetch(`${API_V1_URL}/groups/${groupID}`, {
         method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` },
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -2513,8 +2526,17 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
             (m) => m.bracket_position !== null && m.bracket_position !== undefined
           );
 
-          // Group bracket matches by round name for display
+          // Group bracket matches by bracket_name
           const roundOrder = ["Round of 64", "Round of 32", "Round of 16", "Quarterfinal", "Semifinal", "Final"];
+          const bracketsByName: Record<string, typeof bracketMatches> = {};
+          bracketMatches.forEach((m) => {
+            const name = m.bracket_name || "Main Bracket";
+            if (!bracketsByName[name]) bracketsByName[name] = [];
+            bracketsByName[name].push(m);
+          });
+          const bracketNames = Object.keys(bracketsByName);
+
+          // For legacy display - all rounds across all brackets
           const matchesByRound: Record<string, typeof bracketMatches> = {};
           bracketMatches.forEach((m) => {
             if (!matchesByRound[m.round]) matchesByRound[m.round] = [];
@@ -2665,12 +2687,20 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
                       </div>
                     </div>
 
-                    {/* Warning if existing bracket */}
-                    {bracketMatches.length > 0 && (
-                      <div className="bg-yellow-500/10 text-yellow-600 border border-yellow-500/30 rounded-lg p-3 text-xs">
-                        ⚠️ A bracket already exists for this tournament. Generating a new one will overwrite all match data.
-                      </div>
-                    )}
+                      {/* Bracket Name */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Bracket Name</Label>
+                      <input
+                        type="text"
+                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                        placeholder="e.g. Men's Singles, Women's Beginner…"
+                        value={bracketName}
+                        onChange={(e) => setBracketName(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Each unique name creates a separate bracket. Use the same name to regenerate an existing one.
+                      </p>
+                    </div>
 
                     <Button
                       size="lg"
@@ -2778,7 +2808,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
                 </div>
               ) : (
                 /* ── BRACKET VIEW ── */
-                <div className="space-y-4">
+                <div className="space-y-8">
                   {bracketMatches.length === 0 ? (
                     <div className="p-12 text-center text-muted-foreground border-2 border-dashed rounded-xl">
                       No bracket generated yet.
@@ -2786,10 +2816,20 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
                         Go to Setup →
                       </button>
                     </div>
-                  ) : (
+                  ) : bracketNames.map((bName) => {
+                    const bMatches = bracketsByName[bName];
+                    const bByRound: Record<string, typeof bMatches> = {};
+                    bMatches.forEach((m) => {
+                      if (!bByRound[m.round]) bByRound[m.round] = [];
+                      bByRound[m.round].push(m);
+                    });
+                    const bSortedRounds = roundOrder.filter((r) => bByRound[r]);
+                    return (
+                    <div key={bName} className="space-y-4">
+                      <h2 className="text-lg font-bold border-b pb-2">{bName}</h2>
                     <div className="overflow-x-auto pb-4">
                       <div className="flex gap-6 min-w-max">
-                        {sortedRounds.map((round) => (
+                        {bSortedRounds.map((round) => (
                           <div key={round} className="flex flex-col gap-3 min-w-[220px]">
                             {/* Round Header */}
                             <div
@@ -2805,7 +2845,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
                             </div>
                             {/* Match Cards */}
                             <div className="flex flex-col gap-4 flex-1 justify-around">
-                              {(matchesByRound[round] || [])
+                              {(bByRound[round] || [])
                                 .sort((a, b) => (a.bracket_position ?? 0) - (b.bracket_position ?? 0))
                                 .map((m) => {
                                   const isCompleted = m.status === "completed";
@@ -2881,7 +2921,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
 
                       {/* Champion callout */}
                       {(() => {
-                        const finalMatches = matchesByRound["Final"] || [];
+                        const finalMatches = bByRound["Final"] || [];
                         const finalMatch = finalMatches.find((m) => m.status === "completed");
                         const champName = finalMatch?.winner_name?.trim();
                         if (!champName) return null;
@@ -2894,7 +2934,9 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
                         );
                       })()}
                     </div>
-                  )}
+                    </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

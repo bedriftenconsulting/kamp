@@ -154,8 +154,9 @@ func (h *MatchHandler) CompleteMatch(c *gin.Context) {
 }
 
 type generateBracketRequest struct {
-	Size      int      `json:"size" binding:"required"`
-	PlayerIDs []string `json:"player_ids" binding:"required"`
+	Size        int      `json:"size" binding:"required"`
+	PlayerIDs   []string `json:"player_ids" binding:"required"`
+	BracketName string   `json:"bracket_name"`
 }
 
 func (h *MatchHandler) GenerateBracket(c *gin.Context) {
@@ -176,7 +177,12 @@ func (h *MatchHandler) GenerateBracket(c *gin.Context) {
 		return
 	}
 
-	err := h.service.GenerateBracket(c, tournamentID, input.PlayerIDs)
+	bracketName := strings.TrimSpace(input.BracketName)
+	if bracketName == "" {
+		bracketName = "Main Bracket"
+	}
+
+	err := h.service.GenerateBracket(c, tournamentID, input.PlayerIDs, bracketName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

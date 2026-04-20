@@ -124,9 +124,9 @@ func validateMatchPlayers(m *model.Match) error {
 	return nil
 }
 
-func (s *MatchService) GenerateBracket(ctx context.Context, tournamentID string, playerIDs []string) error {
-	// 1. Clear existing bracket matches to ensure idempotency and fix duplicates
-	if err := s.repo.DeleteBracketMatches(ctx, tournamentID); err != nil {
+func (s *MatchService) GenerateBracket(ctx context.Context, tournamentID string, playerIDs []string, bracketName string) error {
+	// Clear existing matches for this specific bracket name only
+	if err := s.repo.DeleteBracketMatches(ctx, tournamentID, bracketName); err != nil {
 		return fmt.Errorf("failed to clear existing bracket: %v", err)
 	}
 
@@ -159,6 +159,7 @@ func (s *MatchService) GenerateBracket(ctx context.Context, tournamentID string,
 				TournamentID: &tournamentID,
 				Round:        rName,
 				Status:       "scheduled",
+				BracketName:  &bracketName,
 			}
 			pos := i
 			m.BracketPosition = &pos
