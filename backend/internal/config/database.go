@@ -26,11 +26,15 @@ func NewDB(cfg *Config) *pgxpool.Pool {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
 	db, err := pgxpool.New(ctx, dsn)
 	if err != nil {
-		log.Fatalf("Unable to connect to database: %v", err)
+		log.Printf("⚠️ DB connection failed: %v", err)
 	}
+
+	// db, err := pgxpool.New(ctx, dsn)
+	// if err != nil {
+	// 	log.Fatalf("Unable to connect to database: %v", err)
+	// }
 
 	err = db.Ping(ctx)
 	if err != nil {
