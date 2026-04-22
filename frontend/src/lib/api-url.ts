@@ -1,6 +1,6 @@
 const envApiUrl = import.meta.env.VITE_API_URL?.trim();
 const fallbackApiUrl = import.meta.env.PROD
-  ? "/api/proxy"
+  ? "http://34.35.193.24:8080"
   : "http://localhost:8080";
 
 if (!envApiUrl) {
