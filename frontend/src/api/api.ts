@@ -107,6 +107,18 @@ export const api = {
     return res.json();
   },
 
+  deleteUser: async (userId: string, token: string) => {
+    const res = await fetch(`${BASE_URL}/admin/users/${userId}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to delete user");
+    }
+    return res.json();
+  },
+
   createDirector: async (payload: { email: string; password: string; tournament_id: string }, token: string) => {
     const res = await fetch(`${BASE_URL}/admin/users/director`, {
       method: "POST",

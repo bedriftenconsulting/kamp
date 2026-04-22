@@ -38,10 +38,15 @@ export default function UmpireScoring() {
       const availableMatches = data.filter((m: any) => {
         if (m.status !== "scheduled" && m.status !== "live") return false;
         if (user?.role === "admin") return true;
-        // Umpire with tournament-scoped credentials sees all matches in their tournament
-        if (user?.tournament_id && m.tournament_id === user.tournament_id) return true;
-        // Umpire assigned directly to a specific match
-        return String(m.umpire_id) === String(user?.id);
+        if (user?.role === "umpire") {
+          // No tournament restriction — can score any match
+          if (!user.tournament_id) return true;
+          // Tournament-scoped credential — only their tournament
+          if (m.tournament_id === user.tournament_id) return true;
+          // Directly assigned to this specific match
+          return String(m.umpire_id) === String(user?.id);
+        }
+        return false;
       });
       setMatches(availableMatches);
     });

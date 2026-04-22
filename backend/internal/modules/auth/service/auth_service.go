@@ -126,6 +126,10 @@ func (s *AuthService) UpdateUserRole(ctx context.Context, userID, role string) e
 	return s.repo.UpdateRole(ctx, userID, role)
 }
 
+func (s *AuthService) DeleteUser(ctx context.Context, userID string) error {
+	return s.repo.Delete(ctx, userID)
+}
+
 func (s *AuthService) ListUsers(ctx context.Context, role string) ([]model.User, error) {
 	return s.repo.GetAll(ctx, role)
 }

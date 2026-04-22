@@ -186,9 +186,9 @@ func main() {
 				admin.POST("/users/umpire", authHdl.CreateUmpire)
 				admin.POST("/users/director", authHdl.CreateDirector)
 				admin.PATCH("/users/:id/role", authHdl.UpdateUserRole)
+				admin.DELETE("/users/:id", authHdl.DeleteUser)
 				admin.POST("/tournaments", tournamentHdl.CreateTournament)
 				admin.DELETE("/tournaments/:id", tournamentHdl.DeleteTournament)
-				admin.DELETE("/groups/:id", groupHdl.DeleteGroup)
 			}
 
 			// Tournament Director or Admin
@@ -224,6 +224,7 @@ func main() {
 
 				// Group Management
 				staff.POST("/groups", groupHdl.CreateGroup)
+				staff.DELETE("/groups/:id", groupHdl.DeleteGroup)
 				staff.PUT("/groups/:id/players", groupHdl.SetPlayers)
 				staff.POST("/groups/:id/lock", groupHdl.LockGroup)
 				staff.PUT("/groups/:id/matches/:matchId/result", groupHdl.SaveResult)

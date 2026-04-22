@@ -105,6 +105,19 @@ func (h *AuthHandler) CreateDirector(c *gin.Context) {
 	c.JSON(http.StatusCreated, user)
 }
 
+func (h *AuthHandler) DeleteUser(c *gin.Context) {
+	targetID := c.Param("id")
+	if err := h.service.DeleteUser(c.Request.Context(), targetID); err != nil {
+		if err.Error() == "user not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "user deleted"})
+}
+
 func (h *AuthHandler) CreateUmpire(c *gin.Context) {
 	var req model.CreateUmpireRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

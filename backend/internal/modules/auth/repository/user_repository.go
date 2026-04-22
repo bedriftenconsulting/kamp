@@ -105,6 +105,32 @@ func (r *UserRepository) UpdateRole(ctx context.Context, userID, role string) er
 	return nil
 }
 
+func (r *UserRepository) Delete(ctx context.Context, userID string) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(ctx,
+		"UPDATE tournaments SET director_id = NULL WHERE director_id = $1::uuid",
+		userID,
+	)
+	if err != nil {
+		return err
+	}
+
+	result, err := tx.Exec(ctx, "DELETE FROM users WHERE id = $1", userID)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return errors.New("user not found")
+	}
+
+	return tx.Commit(ctx)
+}
+
 func (r *UserRepository) GetAll(ctx context.Context, role string) ([]model.User, error) {
 	query := `
 		SELECT id, email, role, COALESCE(first_name, ''), COALESCE(last_name, ''), tournament_id, created_at, updated_at

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import ScoreCard from "@/components/matches/ScoreCard";
 import { useAuth } from "@/components/auth/AuthContext";
 import { API_V1_URL } from "@/lib/api-url";
+import { api } from "@/api/api";
 import {
   LayoutDashboard,
   Users,
@@ -47,6 +48,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useToast } from "@/components/ui/use-toast";
 
 const tabs = [
   { id: "overview", label: "Overview", icon: LayoutDashboard, adminOnly: false },
@@ -402,6 +404,7 @@ const fetchJSONOrFallback = async <T,>(
 
 export default function AdminDashboard({ forcedTournamentId }: { forcedTournamentId?: string }) {
   const { token, user: authUser } = useAuth();
+  const { toast } = useToast();
   const isAdmin = authUser?.role === "admin";
   const [activeTab, setActiveTab] = useState("overview");
   const [globalTournamentId, setGlobalTournamentId] = useState<string>(forcedTournamentId || "");
@@ -676,6 +679,9 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
           end_date: t.end_date,
           status: t.status,
           surface: t.surface,
+          director_id: t.director_id ?? null,
+          banner_image: t.banner_image ?? null,
+          accent_color: t.accent_color ?? null,
         }),
       );
 
@@ -1145,6 +1151,17 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
       alert(error?.message || "Failed to create umpire");
     } finally {
       setIsCreatingUmpire(false);
+    }
+  };
+
+  const handleDeleteDirector = async (directorId: string, email: string) => {
+    if (!confirm(`Delete director ${email}? This will also unassign them from their tournament.`)) return;
+    try {
+      await api.deleteUser(directorId, token!);
+      toast({ title: "Director Deleted", description: `${email} has been removed.` });
+      await fetchData();
+    } catch (error: any) {
+      alert(error?.message || "Failed to delete director");
     }
   };
 
@@ -2359,6 +2376,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
                       <th className="px-4 py-3 text-left">Tournament ID</th>
                       <th className="px-4 py-3 text-left">Name</th>
                       <th className="px-4 py-3 text-left">Location</th>
+                      <th className="px-4 py-3 text-left">Director</th>
                       <th className="px-4 py-3 text-left">Start Date</th>
                       <th className="px-4 py-3 text-left">End Date</th>
                       <th className="px-4 py-3 text-right">Actions</th>
@@ -2370,6 +2388,17 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
                         <td className="px-4 py-3">{t.id}</td>
                         <td className="px-4 py-3">{t.name}</td>
                         <td className="px-4 py-3">{t.location || "-"}</td>
+                        <td className="px-4 py-3">
+                          {t.director_id
+                            ? (() => {
+                                const dir = directors.find((d) => d.id === t.director_id);
+                                return dir
+                                  ? <Badge variant="secondary" className="bg-blue-500/10 text-blue-500">{dir.email}</Badge>
+                                  : <span className="text-muted-foreground/40 text-sm">—</span>;
+                              })()
+                            : <span className="text-muted-foreground/40 text-sm">—</span>
+                          }
+                        </td>
                         <td className="px-4 py-3">
                           {t.start_date
                             ? String(t.start_date).slice(0, 10)
@@ -3050,12 +3079,13 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
                     <TableHead>Director Email</TableHead>
                     <TableHead>Assigned Tournament</TableHead>
                     <TableHead>Created On</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {directors.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={3} className="h-24 text-center text-muted-foreground italic">
+                      <TableCell colSpan={4} className="h-24 text-center text-muted-foreground italic">
                         No directors assigned yet. Use the button above to create one.
                       </TableCell>
                     </TableRow>
@@ -3076,6 +3106,15 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
                           </TableCell>
                           <TableCell className="text-muted-foreground text-sm">
                             {new Date(d.created_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              onClick={() => handleDeleteDirector(d.id, d.email)}
+                            >
+                              <Trash2 size={14} />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       );

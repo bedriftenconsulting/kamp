@@ -124,12 +124,18 @@ func RequireMatchAccess(db *pgxpool.Pool) gin.HandlerFunc {
 				c.Next()
 				return
 			}
-			// Check if this umpire is assigned to the tournament (tournament-scoped credential)
+			// Check umpire's tournament scope
 			var userTournamentID string
 			_ = db.QueryRow(c.Request.Context(),
 				"SELECT COALESCE(tournament_id::text, '') FROM users WHERE id = $1", userID,
 			).Scan(&userTournamentID)
-			if userTournamentID != "" && userTournamentID == tournamentID {
+			// No tournament restriction — general umpire can score any match
+			if userTournamentID == "" {
+				c.Next()
+				return
+			}
+			// Tournament-scoped credential — only their tournament
+			if userTournamentID == tournamentID {
 				c.Next()
 				return
 			}
