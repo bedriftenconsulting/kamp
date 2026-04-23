@@ -23,8 +23,11 @@ export default function UmpireScoring() {
   const [scoringState, setScoringState] = useState<any>(null);
   const [tournamentRules, setTournamentRules] = useState<any>(null);
 
-  // If this umpire has a tournament assignment, lock to it
-  const lockedTournamentId = user?.role === "umpire" ? (user.tournament_id ?? null) : null;
+  // Lock umpires and directors to their assigned tournament
+  const lockedTournamentId =
+    user?.role === "umpire" || user?.role === "director"
+      ? (user.tournament_id ?? null)
+      : null;
 
   // Load matches and tournaments
   useEffect(() => {
@@ -45,6 +48,12 @@ export default function UmpireScoring() {
           if (m.tournament_id === user.tournament_id) return true;
           // Directly assigned to this specific match
           return String(m.umpire_id) === String(user?.id);
+        }
+        if (user?.role === "director") {
+          // Director with no tournament assignment can score any match
+          if (!user.tournament_id) return true;
+          // Otherwise restricted to their tournament only
+          return m.tournament_id === user.tournament_id;
         }
         return false;
       });

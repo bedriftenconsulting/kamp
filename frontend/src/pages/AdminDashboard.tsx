@@ -406,8 +406,14 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
   const { token, user: authUser } = useAuth();
   const { toast } = useToast();
   const isAdmin = authUser?.role === "admin";
+  const isDirector = authUser?.role === "director";
+
+  // Directors are always locked to their assigned tournament, regardless of how
+  // they arrived at this page (via DirectorDashboard prop or direct URL navigation).
+  const lockedTournamentId = forcedTournamentId || (isDirector ? (authUser?.tournament_id ?? "") : "");
+
   const [activeTab, setActiveTab] = useState("overview");
-  const [globalTournamentId, setGlobalTournamentId] = useState<string>(forcedTournamentId || "");
+  const [globalTournamentId, setGlobalTournamentId] = useState<string>(lockedTournamentId || "");
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [matches, setMatches] = useState<Match[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -508,6 +514,13 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
   const [selectedPlayoffGroupId, setSelectedPlayoffGroupId] = useState<string>("");
   const [playoffGroupStandings, setPlayoffGroupStandings] = useState<GroupStanding[]>([]);
   const [playoffView, setPlayoffView] = useState<"setup" | "bracket">("setup");
+
+  // Keep the tournament locked if a forced ID is provided (director mode).
+  useEffect(() => {
+    if (lockedTournamentId) {
+      setGlobalTournamentId(lockedTournamentId);
+    }
+  }, [lockedTournamentId]);
 
   useEffect(() => {
     setBracketPlayers((prev) => {
@@ -1640,18 +1653,28 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
 
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-bold">Manage Content</h2>
-          <select
-            className="p-2 border rounded-md text-sm bg-card min-w-0 max-w-full sm:max-w-[220px]"
-            value={globalTournamentId}
-            onChange={(e) => setGlobalTournamentId(e.target.value)}
-          >
-            <option value="all">All Tournaments</option>
-            {tournaments.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
+          {lockedTournamentId ? (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted border text-sm font-medium text-muted-foreground">
+              <Trophy size={14} className="shrink-0" />
+              <span className="truncate max-w-[180px]">
+                {tournaments.find((t) => t.id === lockedTournamentId)?.name ?? "Assigned Tournament"}
+              </span>
+            </div>
+          ) : (
+            <select
+              title="Select tournament"
+              className="p-2 border rounded-md text-sm bg-card min-w-0 max-w-full sm:max-w-[220px]"
+              value={globalTournamentId}
+              onChange={(e) => setGlobalTournamentId(e.target.value)}
+            >
+              <option value="all">All Tournaments</option>
+              {tournaments.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
         {activeTab === "overview" && (
           <div>
