@@ -117,11 +117,11 @@ export default function UmpireScoring() {
 
   if (!selectedMatch) {
     return (
-      <div className="min-h-screen bg-primary flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen bg-primary flex flex-col items-center justify-center p-3 sm:p-4">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-card rounded-md p-8 w-full max-w-md text-center border"
+          className="bg-card rounded-md p-5 sm:p-8 w-full max-w-md text-center border"
         >
           <Shield size={48} className="mx-auto text-primary mb-4" />
           <h1 className="text-2xl font-black mb-2">Umpire Dashboard</h1>
@@ -199,7 +199,7 @@ export default function UmpireScoring() {
   // The scoring UI
   return (
     <div className="min-h-screen bg-primary flex flex-col">
-      <div className="bg-primary p-4 pt-6">
+      <div className="bg-primary p-3 sm:p-4 pt-5 sm:pt-6">
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-4">
             <div className="flex gap-2">
@@ -279,7 +279,7 @@ export default function UmpireScoring() {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col p-4 gap-4 max-w-lg mx-auto w-full justify-center">
+      <div className="flex-1 flex flex-col p-3 sm:p-4 gap-3 sm:gap-4 max-w-lg mx-auto w-full justify-center">
         {scoringState?.match_finished ? (
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -315,7 +315,7 @@ export default function UmpireScoring() {
             <button
               type="button"
               onClick={() => scorePoint(1)}
-              className="flex-1 bg-secondary hover:bg-secondary/90 active:scale-[0.98] transition-all rounded-xl flex items-center justify-center min-h-[140px] shadow-lg border border-secondary/20"
+              className="flex-1 bg-secondary hover:bg-secondary/90 active:scale-[0.98] transition-all rounded-xl flex items-center justify-center min-h-[110px] sm:min-h-[140px] shadow-lg border border-secondary/20"
             >
               <div className="flex flex-col items-center">
                 <span className="text-secondary-foreground font-black text-2xl mb-2">
@@ -330,7 +330,7 @@ export default function UmpireScoring() {
             <button
               type="button"
               onClick={() => scorePoint(2)}
-              className="flex-1 bg-primary-foreground hover:bg-primary-foreground/90 active:scale-[0.98] transition-all rounded-xl flex items-center justify-center min-h-[140px] shadow-lg border border-primary-foreground/20"
+              className="flex-1 bg-primary-foreground hover:bg-primary-foreground/90 active:scale-[0.98] transition-all rounded-xl flex items-center justify-center min-h-[110px] sm:min-h-[140px] shadow-lg border border-primary-foreground/20"
             >
               <div className="flex flex-col items-center">
                 <span className="text-primary font-black text-2xl mb-2">

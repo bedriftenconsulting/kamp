@@ -1626,7 +1626,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
         </div>
       </aside>
 
-      <main className="flex-1 p-6 min-w-0">
+      <main className="flex-1 p-3 sm:p-6 min-w-0">
         {/* ── Mobile top bar ── */}
         <div className="lg:hidden flex items-center gap-3 mb-6 -mt-2">
           <button
@@ -1638,10 +1638,10 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
           <span className="font-bold text-sm">Admin Panel</span>
         </div>
 
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-bold">Manage Content</h2>
           <select
-            className="p-2 border rounded-md text-sm bg-card"
+            className="p-2 border rounded-md text-sm bg-card min-w-0 max-w-full sm:max-w-[220px]"
             value={globalTournamentId}
             onChange={(e) => setGlobalTournamentId(e.target.value)}
           >
@@ -1657,7 +1657,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
           <div>
             <h1 className="text-2xl font-black mb-6">Dashboard</h1>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
               {[
                 { label: "Live Matches", value: liveCount, icon: Zap },
                 { label: "Completed", value: completedCount, icon: Trophy },
@@ -1692,8 +1692,8 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
               </p>
             </div>
 
-            <div className="bg-card border rounded-md overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="bg-card border rounded-md overflow-x-auto">
+              <table className="w-full text-sm min-w-[560px]">
                 <thead className="bg-muted/50">
                   <tr>
                     <th className="px-4 py-3 text-left">No.</th>
@@ -1740,7 +1740,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
               </table>
             </div>
 
-            <div className="mt-4 flex items-center justify-between">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
               <div className="text-sm text-muted-foreground">
                 Showing{" "}
                 {finalizedMatches.length === 0
@@ -1976,9 +1976,9 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
 
         {activeTab === "players" && (
           <div>
-            <div className="mb-6 flex items-center justify-between">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
               <h1 className="text-2xl font-black">Players & Teams</h1>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button onClick={handleOpenAddTeam} className="gap-2" variant="outline">
                   <Plus size={16} />
                   Add Team
@@ -1990,15 +1990,15 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
               </div>
             </div>
 
-            <div className="bg-card border rounded-md overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="bg-card border rounded-md overflow-x-auto">
+              <table className="w-full text-sm min-w-[540px]">
                 <thead className="bg-muted/50">
                   <tr>
                     <th className="px-4 py-3 text-left">No.</th>
                     <th className="px-4 py-3 text-left">Name</th>
                     <th className="px-4 py-3 text-left">Gender</th>
                     <th className="px-4 py-3 text-left">Age</th>
-                    <th className="px-4 py-3 text-left">Tennis Level</th>
+                    <th className="px-4 py-3 text-left">Level</th>
                     <th className="px-4 py-3 text-left">Tournament</th>
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
@@ -2041,7 +2041,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
 
         {activeTab === "groups" && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <h1 className="text-2xl font-black">Groups</h1>
               <Button onClick={handleOpenAddGroup} className="gap-2">
                 <Plus size={16} />
@@ -2049,8 +2049,8 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
               </Button>
             </div>
 
-            <div className="bg-card border rounded-md overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="bg-card border rounded-md overflow-x-auto">
+              <table className="w-full text-sm min-w-[520px]">
                 <thead className="bg-muted/50">
                   <tr>
                     <th className="px-4 py-3 text-left">Group</th>
@@ -2360,7 +2360,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
 
         {activeTab === "tournament" && (
           <div>
-            <div className="mb-6 flex items-center justify-between">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
               <h1 className="text-2xl font-black">Tournaments</h1>
               <Button onClick={handleOpenAddTournament} className="gap-2">
                 <Plus size={16} />
@@ -2369,11 +2369,11 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
             </div>
 
             {tournaments && tournaments.length > 0 ? (
-              <div className="bg-card border rounded-md overflow-hidden">
-                <table className="w-full text-sm">
+              <div className="bg-card border rounded-md overflow-x-auto">
+                <table className="w-full text-sm min-w-[600px]">
                   <thead className="bg-muted/50">
                     <tr>
-                      <th className="px-4 py-3 text-left">Tournament ID</th>
+                      <th className="px-4 py-3 text-left">ID</th>
                       <th className="px-4 py-3 text-left">Name</th>
                       <th className="px-4 py-3 text-left">Location</th>
                       <th className="px-4 py-3 text-left">Director</th>
@@ -2385,7 +2385,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
                   <tbody>
                     {tournaments.map((t) => (
                       <tr key={t.id} className="border-t">
-                        <td className="px-4 py-3">{t.id}</td>
+                        <td className="px-4 py-3 max-w-[80px] truncate text-xs text-muted-foreground font-mono">{t.id.slice(0, 8)}…</td>
                         <td className="px-4 py-3">{t.name}</td>
                         <td className="px-4 py-3">{t.location || "-"}</td>
                         <td className="px-4 py-3">
@@ -2584,7 +2584,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
           return (
             <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
               {/* Header */}
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h1 className="text-2xl font-black">Playoff Bracket</h1>
                   <p className="text-sm text-muted-foreground mt-1">
@@ -2986,14 +2986,14 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
               </Button>
             </div>
 
-            <div className="border rounded-xl overflow-hidden bg-card">
-              <Table>
+            <div className="border rounded-xl overflow-x-auto bg-card">
+              <Table className="min-w-[520px]">
                 <TableHeader>
                   <TableRow className="bg-muted/50">
-                    <TableHead className="w-[260px]">User Email</TableHead>
-                    <TableHead>Current Role</TableHead>
-                    <TableHead>Tournament</TableHead>
-                    <TableHead>Joined On</TableHead>
+                    <TableHead>User Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead className="hidden sm:table-cell">Tournament</TableHead>
+                    <TableHead className="hidden sm:table-cell">Joined</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -3021,12 +3021,12 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
                             {u.role.toUpperCase()}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
+                        <TableCell className="text-muted-foreground text-sm hidden sm:table-cell">
                           {u.tournament_id
                             ? (tournaments.find((t) => t.id === u.tournament_id)?.name ?? u.tournament_id.slice(0, 8) + "…")
                             : <span className="text-muted-foreground/40">—</span>}
                         </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
+                        <TableCell className="text-muted-foreground text-sm hidden sm:table-cell">
                           {new Date(u.created_at).toLocaleDateString()}
                         </TableCell>
                         <TableCell className="text-right">
@@ -3035,7 +3035,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
                             value={u.role}
                             onValueChange={(val) => handleUpdateUserRole(u.id, val)}
                           >
-                            <SelectTrigger className="w-[160px] ml-auto">
+                            <SelectTrigger className="w-[120px] sm:w-[160px] ml-auto">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -3072,13 +3072,13 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
               </Button>
             </div>
 
-            <div className="border rounded-xl overflow-hidden bg-card">
-              <Table>
+            <div className="border rounded-xl overflow-x-auto bg-card">
+              <Table className="min-w-[420px]">
                 <TableHeader>
                   <TableRow className="bg-muted/50">
                     <TableHead>Director Email</TableHead>
-                    <TableHead>Assigned Tournament</TableHead>
-                    <TableHead>Created On</TableHead>
+                    <TableHead>Tournament</TableHead>
+                    <TableHead className="hidden sm:table-cell">Created</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -3104,7 +3104,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
                               <span className="text-muted-foreground/40 text-sm">— unassigned</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-muted-foreground text-sm">
+                          <TableCell className="text-muted-foreground text-sm hidden sm:table-cell">
                             {new Date(d.created_at).toLocaleDateString()}
                           </TableCell>
                           <TableCell className="text-right">
