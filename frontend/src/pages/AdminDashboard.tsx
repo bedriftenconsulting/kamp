@@ -3127,7 +3127,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
         )}
 
       </main><Dialog open={isPlayerDialogOpen} onOpenChange={setIsPlayerDialogOpen}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>
                 {isEditingPlayer ? "Edit Player" : "Add Player"}
@@ -3289,7 +3289,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
             </div>
           </DialogContent>
         </Dialog><Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>
                 {isEditingMatch ? "Edit Match" : "Add Match"}
@@ -3405,7 +3405,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
           open={isCompleteDialogOpen}
           onOpenChange={setIsCompleteDialogOpen}
         >
-          <DialogContent className="max-w-lg">
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Complete Match</DialogTitle>
               <DialogDescription>
@@ -3413,7 +3413,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
               </DialogDescription>
             </DialogHeader>
 
-            <div className="grid grid-cols-2 gap-4 py-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
               <div className="space-y-2">
                 <Label htmlFor="complete-p1-sets">Player 1 Sets</Label>
                 <Input
@@ -3477,7 +3477,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
           open={isTournamentDialogOpen}
           onOpenChange={setIsTournamentDialogOpen}
         >
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>
                 {isEditingTournament ? "Edit Tournament" : "Add Tournament"}
@@ -3742,7 +3742,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
             </div>
           </DialogContent>
         </Dialog><Dialog open={isGroupDialogOpen} onOpenChange={setIsGroupDialogOpen}>
-          <DialogContent className="max-w-xl">
+          <DialogContent className="sm:max-w-xl">
             <DialogHeader>
               <DialogTitle>Create Group</DialogTitle>
               <DialogDescription>
@@ -3859,7 +3859,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
             </div>
           </DialogContent>
         </Dialog><Dialog open={isTeamDialogOpen} onOpenChange={setIsTeamDialogOpen}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Create Doubles Team</DialogTitle>
               <DialogDescription>
@@ -3897,7 +3897,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
                   ))}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Gender</Label>
                   <select
@@ -3937,7 +3937,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
 
       {/* ── Create Director Credentials Dialog ── */}
       <Dialog open={isCreateDirectorOpen} onOpenChange={setIsCreateDirectorOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Create Director Credentials</DialogTitle>
             <DialogDescription>
@@ -4000,7 +4000,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
 
       {/* ── Create Umpire Credentials Dialog ── */}
       <Dialog open={isCreateUmpireOpen} onOpenChange={setIsCreateUmpireOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Create Umpire Credentials</DialogTitle>
             <DialogDescription>
