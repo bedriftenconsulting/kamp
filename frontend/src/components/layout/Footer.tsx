@@ -6,9 +6,13 @@ export default function Footer() {
       <div className="container py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-sm bg-secondary flex items-center justify-center font-display font-black text-secondary-foreground text-sm">GS</div>
-              <span className="font-display font-bold text-lg">Grand Slam Open</span>
+            <div className="flex items-center gap-2.5 mb-4">
+              <svg width="28" height="28" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <circle cx="15" cy="15" r="14" fill="hsl(73 100% 50%)"/>
+                <path d="M3 10.5 Q15 15.5 27 10.5" stroke="white" strokeWidth="2.2" fill="none" strokeLinecap="round"/>
+                <path d="M3 19.5 Q15 14.5 27 19.5" stroke="white" strokeWidth="2.2" fill="none" strokeLinecap="round"/>
+              </svg>
+              <span className="font-black text-primary-foreground text-xl tracking-[-0.04em]">KAMP</span>
             </div>
             <p className="text-primary-foreground/60 text-sm leading-relaxed">
               The premier international tennis tournament featuring the world's best players.

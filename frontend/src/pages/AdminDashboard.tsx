@@ -49,6 +49,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/components/ui/use-toast";
+import Loader from "@/components/ui/loader";
 
 const tabs = [
   { id: "overview", label: "Overview", icon: LayoutDashboard, adminOnly: false },
@@ -415,6 +416,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
   const [activeTab, setActiveTab] = useState("overview");
   const [globalTournamentId, setGlobalTournamentId] = useState<string>(lockedTournamentId || "");
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [matches, setMatches] = useState<Match[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -760,6 +762,8 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
 
     } catch (error) {
       console.error("Error loading admin data:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -1568,6 +1572,14 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
   const completedCount = matches.filter((m) => m.status === "completed").length;
   const upcomingCount = matches.filter((m) => m.status === "scheduled").length;
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30">
+        <Loader label="Loading admin data…" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-muted/30 flex">
       {/* ── Mobile Overlay ── */}
@@ -1653,27 +1665,29 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
 
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-bold">Manage Content</h2>
-          {lockedTournamentId ? (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted border text-sm font-medium text-muted-foreground">
-              <Trophy size={14} className="shrink-0" />
-              <span className="truncate max-w-[180px]">
-                {tournaments.find((t) => t.id === lockedTournamentId)?.name ?? "Assigned Tournament"}
-              </span>
-            </div>
-          ) : (
-            <select
-              title="Select tournament"
-              className="p-2 border rounded-md text-sm bg-card min-w-0 max-w-full sm:max-w-[220px]"
-              value={globalTournamentId}
-              onChange={(e) => setGlobalTournamentId(e.target.value)}
-            >
-              <option value="all">All Tournaments</option>
-              {tournaments.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
+          {!isDirector && (
+            lockedTournamentId ? (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted border text-sm font-medium text-muted-foreground">
+                <Trophy size={14} className="shrink-0" />
+                <span className="truncate max-w-[180px]">
+                  {tournaments.find((t) => t.id === lockedTournamentId)?.name ?? "Assigned Tournament"}
+                </span>
+              </div>
+            ) : (
+              <select
+                title="Select tournament"
+                className="p-2 border rounded-md text-sm bg-card min-w-0 max-w-full sm:max-w-[220px]"
+                value={globalTournamentId}
+                onChange={(e) => setGlobalTournamentId(e.target.value)}
+              >
+                <option value="all">All Tournaments</option>
+                {tournaments.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            )
           )}
         </div>
         {activeTab === "overview" && (
@@ -2385,13 +2399,19 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
           <div>
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
               <h1 className="text-2xl font-black">Tournaments</h1>
-              <Button onClick={handleOpenAddTournament} className="gap-2">
-                <Plus size={16} />
-                Add Tournament
-              </Button>
+              {!isDirector && (
+                <Button onClick={handleOpenAddTournament} className="gap-2">
+                  <Plus size={16} />
+                  Add Tournament
+                </Button>
+              )}
             </div>
 
-            {tournaments && tournaments.length > 0 ? (
+            {(() => {
+              const visibleTournaments = isDirector && lockedTournamentId
+                ? tournaments.filter((t) => t.id === lockedTournamentId)
+                : tournaments;
+              return visibleTournaments && visibleTournaments.length > 0 ? (
               <div className="bg-card border rounded-md overflow-x-auto">
                 <table className="w-full text-sm min-w-[600px]">
                   <thead className="bg-muted/50">
@@ -2406,7 +2426,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
                     </tr>
                   </thead>
                   <tbody>
-                    {tournaments.map((t) => (
+                    {visibleTournaments.map((t) => (
                       <tr key={t.id} className="border-t">
                         <td className="px-4 py-3 max-w-[80px] truncate text-xs text-muted-foreground font-mono">{t.id.slice(0, 8)}…</td>
                         <td className="px-4 py-3">{t.name}</td>
@@ -2458,7 +2478,8 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
               <div className="bg-card border rounded-md p-10 text-center text-muted-foreground">
                 No tournaments available
               </div>
-            )}
+            );
+            })()}
           </div>
         )}
 

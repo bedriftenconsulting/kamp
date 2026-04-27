@@ -158,13 +158,16 @@ func (r *TournamentRepository) Delete(ctx context.Context, id string) error {
 }
 
 func (r *TournamentRepository) CleanupOldTournaments(ctx context.Context) error {
-	query := `DELETE FROM tournaments WHERE status = 'completed' AND updated_at < NOW() - INTERVAL '7 days'`
+	// Delete tournaments whose end_date was more than 10 days ago.
+	// Uses end_date directly so editing a tournament never resets the clock.
+	query := `DELETE FROM tournaments WHERE end_date < CURRENT_DATE - INTERVAL '10 days'`
 	_, err := r.db.Exec(ctx, query)
 	return err
 }
 
 func (r *TournamentRepository) UpdateExpiredTournaments(ctx context.Context) error {
-	query := `UPDATE tournaments SET status = 'completed', updated_at = NOW() WHERE status != 'completed' AND end_date < NOW()`
+	// Mark as completed once the end date has fully passed (i.e. today is after end_date).
+	query := `UPDATE tournaments SET status = 'completed', updated_at = NOW() WHERE status != 'completed' AND end_date < CURRENT_DATE`
 	_, err := r.db.Exec(ctx, query)
 	return err
 }

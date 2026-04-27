@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { API_V1_URL } from "@/lib/api-url";
 import { useAuth } from "@/components/auth/AuthContext";
+import Loader from "@/components/ui/loader";
 import { 
   LayoutDashboard, 
   Users, 
@@ -47,7 +48,7 @@ export default function DirectorDashboard() {
   }, [user, token]);
 
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading your tournaments...</div>;
+    return <div className="min-h-screen flex items-center justify-center"><Loader label="Loading your tournaments…" /></div>;
   }
 
   // If a tournament is selected, we show the management interface

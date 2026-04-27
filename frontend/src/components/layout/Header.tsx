@@ -45,12 +45,14 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-50 bg-primary border-b border-primary/80">
       <div className="container flex items-center justify-between h-16">
-        <Link to="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-sm bg-secondary flex items-center justify-center font-display font-black text-secondary-foreground text-sm">
-            K
-          </div>
-          <span className="font-display font-bold text-primary-foreground text-lg tracking-tight hidden sm:block">
-            Kamp
+        <Link to="/" className="flex items-center gap-2.5">
+          <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <circle cx="15" cy="15" r="14" fill="hsl(73 100% 50%)"/>
+            <path d="M3 10.5 Q15 15.5 27 10.5" stroke="white" strokeWidth="2.2" fill="none" strokeLinecap="round"/>
+            <path d="M3 19.5 Q15 14.5 27 19.5" stroke="white" strokeWidth="2.2" fill="none" strokeLinecap="round"/>
+          </svg>
+          <span className="font-black text-primary-foreground text-xl tracking-[-0.04em] hidden sm:block">
+            KAMP
           </span>
         </Link>
 

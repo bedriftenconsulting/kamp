@@ -3,6 +3,7 @@ import ScoreCard from "@/components/matches/ScoreCard";
 import { Calendar, Trophy } from "lucide-react";
 import { API_V1_URL } from "@/lib/api-url";
 import { useTournament } from "@/components/tournament/TournamentContext";
+import Loader from "@/components/ui/loader";
 
 const PLAYOFF_ROUNDS = [
   "Round of 64",
@@ -85,7 +86,7 @@ export default function Schedule() {
   }, [activeTournamentId]);
 
   if (loading) {
-    return <div className="p-10 text-center">Loading schedule...</div>;
+    return <Loader label="Loading schedule…" />;
   }
 
   return (

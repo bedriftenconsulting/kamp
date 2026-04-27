@@ -44,10 +44,10 @@ func (r *UserRepository) CreateDirector(ctx context.Context, user *model.User, t
 	defer tx.Rollback(ctx)
 
 	err = tx.QueryRow(ctx, `
-		INSERT INTO users (email, password_hash, role)
-		VALUES ($1, $2, 'director')
-		RETURNING id, created_at, updated_at
-	`, user.Email, user.PasswordHash).Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt)
+		INSERT INTO users (email, password_hash, role, tournament_id)
+		VALUES ($1, $2, 'director', $3::uuid)
+		RETURNING id, tournament_id, created_at, updated_at
+	`, user.Email, user.PasswordHash, tournamentID).Scan(&user.ID, &user.TournamentID, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		return err
 	}

@@ -3,6 +3,7 @@ import ScoreCard from "@/components/matches/ScoreCard";
 import { Trophy } from "lucide-react";
 import { API_V1_URL } from "@/lib/api-url";
 import { useTournament } from "@/components/tournament/TournamentContext";
+import Loader from "@/components/ui/loader";
 
 export default function Results() {
   const { activeTournamentId, activeTournament } = useTournament();
@@ -62,7 +63,7 @@ export default function Results() {
   const completed = matches.filter((m) => m.status === "completed");
 
   if (loading) {
-    return <div className="p-10 text-center">Loading results...</div>;
+    return <Loader label="Loading results…" />;
   }
 
   return (

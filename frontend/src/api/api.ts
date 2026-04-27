@@ -29,8 +29,11 @@ export const api = {
     return res.json();
   },
 
-  getMatches: async () => {
-    const res = await fetch(`${BASE_URL}/matches`);
+  getMatches: async (tournamentId?: string) => {
+    const url = tournamentId
+      ? `${BASE_URL}/matches?tournament_id=${encodeURIComponent(tournamentId)}`
+      : `${BASE_URL}/matches`;
+    const res = await fetch(url);
     return res.json();
   },
 

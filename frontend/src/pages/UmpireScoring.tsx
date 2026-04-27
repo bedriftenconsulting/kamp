@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import Loader from "@/components/ui/loader";
 
 export default function UmpireScoring() {
   const { user, token } = useAuth();
@@ -22,6 +23,7 @@ export default function UmpireScoring() {
   const [selectedMatch, setSelectedMatch] = useState<any>(null);
   const [scoringState, setScoringState] = useState<any>(null);
   const [tournamentRules, setTournamentRules] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Lock umpires and directors to their assigned tournament
   const lockedTournamentId =
@@ -31,34 +33,36 @@ export default function UmpireScoring() {
 
   // Load matches and tournaments
   useEffect(() => {
-    api.getTournaments().then((data) => {
-      const toList = (payload: any) =>
-        Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
-      setTournaments(toList(data));
-    });
+    const toList = (payload: any) =>
+      Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
 
-    api.getMatches().then((data) => {
-      const availableMatches = data.filter((m: any) => {
+    const fetchTournamentId =
+      (user?.role === "director" || user?.role === "umpire") && user.tournament_id
+        ? user.tournament_id
+        : undefined;
+
+    setIsLoading(true);
+    Promise.all([
+      api.getTournaments(),
+      api.getMatches(fetchTournamentId),
+    ]).then(([tournamentData, matchData]) => {
+      setTournaments(toList(tournamentData));
+      const availableMatches = matchData.filter((m: any) => {
         if (m.status !== "scheduled" && m.status !== "live") return false;
         if (user?.role === "admin") return true;
         if (user?.role === "umpire") {
-          // No tournament restriction — can score any match
           if (!user.tournament_id) return true;
-          // Tournament-scoped credential — only their tournament
           if (m.tournament_id === user.tournament_id) return true;
-          // Directly assigned to this specific match
           return String(m.umpire_id) === String(user?.id);
         }
         if (user?.role === "director") {
-          // Director with no tournament assignment can score any match
-          if (!user.tournament_id) return true;
-          // Otherwise restricted to their tournament only
+          if (!user.tournament_id) return false;
           return m.tournament_id === user.tournament_id;
         }
         return false;
       });
       setMatches(availableMatches);
-    });
+    }).finally(() => setIsLoading(false));
   }, [user]);
 
   // Lock the tournament dropdown to the umpire's assigned tournament
@@ -123,6 +127,14 @@ export default function UmpireScoring() {
   const lockedTournamentName = lockedTournamentId
     ? tournaments.find((t) => t.id === lockedTournamentId)?.name
     : null;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-primary flex items-center justify-center">
+        <Loader label="Loading matches…" />
+      </div>
+    );
+  }
 
   if (!selectedMatch) {
     return (

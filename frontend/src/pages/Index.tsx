@@ -3,6 +3,7 @@ import { ArrowRight, Calendar, MapPin, Trophy, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import ScoreCard from "@/components/matches/ScoreCard";
+import Loader from "@/components/ui/loader";
 import { API_V1_URL } from "@/lib/api-url";
 import { motion } from "framer-motion";
 
@@ -227,7 +228,7 @@ export default function Index() {
 
   // ✅ Safe loading states
   if (loading) {
-    return <div className="p-10 text-center">Loading...</div>;
+    return <Loader label="Loading…" />;
   }
 
   if (!tournament) {

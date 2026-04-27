@@ -3,6 +3,7 @@ import ScoreCard from "@/components/matches/ScoreCard";
 import LiveScoreCard from "@/components/matches/LiveScoreCard";
 import { Zap } from "lucide-react";
 import { API_V1_URL } from "@/lib/api-url";
+import Loader from "@/components/ui/loader";
 import { useTournament } from "@/components/tournament/TournamentContext";
 
 export default function LiveScores() {
@@ -67,7 +68,7 @@ export default function LiveScores() {
   const completedToday = matches.filter((m) => m.status === "completed");
 
   if (loading) {
-    return <div className="p-10 text-center">Loading live scores...</div>;
+    return <Loader label="Loading live scores…" />;
   }
 
   return (

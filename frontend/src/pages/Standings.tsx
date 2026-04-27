@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { BarChart3 } from "lucide-react";
 import { API_V1_URL } from "@/lib/api-url";
 import { useTournament } from "@/components/tournament/TournamentContext";
+import Loader from "@/components/ui/loader";
 
 export default function Standings() {
   const { activeTournamentId, activeTournament } = useTournament();
@@ -75,7 +76,7 @@ export default function Standings() {
   }, [activeTournamentId]);
 
   if (loading) {
-    return <div className="p-10 text-center">Loading standings...</div>;
+    return <Loader label="Loading standings…" />;
   }
 
   const byType = {
