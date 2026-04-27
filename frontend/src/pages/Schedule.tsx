@@ -86,7 +86,7 @@ export default function Schedule() {
   }, [activeTournamentId]);
 
   if (loading) {
-    return <Loader label="Loading schedule…" />;
+    return <Loader />;
   }
 
   return (

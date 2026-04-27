@@ -228,7 +228,7 @@ export default function Index() {
 
   // ✅ Safe loading states
   if (loading) {
-    return <Loader label="Loading…" />;
+    return <Loader />;
   }
 
   if (!tournament) {

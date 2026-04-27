@@ -68,7 +68,7 @@ export default function LiveScores() {
   const completedToday = matches.filter((m) => m.status === "completed");
 
   if (loading) {
-    return <Loader label="Loading live scores…" />;
+    return <Loader />;
   }
 
   return (

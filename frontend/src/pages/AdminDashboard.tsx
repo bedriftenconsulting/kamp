@@ -1575,7 +1575,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30">
-        <Loader label="Loading admin data…" />
+        <Loader />
       </div>
     );
   }

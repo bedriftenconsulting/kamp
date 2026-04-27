@@ -63,7 +63,7 @@ export default function Results() {
   const completed = matches.filter((m) => m.status === "completed");
 
   if (loading) {
-    return <Loader label="Loading results…" />;
+    return <Loader />;
   }
 
   return (

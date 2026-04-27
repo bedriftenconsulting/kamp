@@ -131,7 +131,7 @@ export default function UmpireScoring() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-primary flex items-center justify-center">
-        <Loader label="Loading matches…" />
+        <Loader />
       </div>
     );
   }

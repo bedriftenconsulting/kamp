@@ -76,7 +76,7 @@ export default function Standings() {
   }, [activeTournamentId]);
 
   if (loading) {
-    return <Loader label="Loading standings…" />;
+    return <Loader />;
   }
 
   const byType = {

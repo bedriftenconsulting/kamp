@@ -107,7 +107,7 @@ export default function Players() {
   }, [activeTournamentId]);
 
   if (loading) {
-    return <Loader label="Loading players…" />;
+    return <Loader />;
   }
 
   return (
