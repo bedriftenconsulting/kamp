@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -173,13 +174,31 @@ func buildPlayerFromRequest(input playerRequest) (*model.Player, error) {
 }
 
 func parseFlexibleDate(v string) (time.Time, error) {
-	if strings.TrimSpace(v) == "" {
+	v = strings.TrimSpace(v)
+	if v == "" {
 		return time.Time{}, nil
 	}
 
-	if t, err := time.Parse("2006-01-02", v); err == nil {
-		return t, nil
+	// Strip time portion if present (e.g. 2003-04-02T00:00:00Z)
+	if len(v) > 10 && v[10] == 'T' {
+		v = v[:10]
 	}
 
-	return time.Parse(time.RFC3339, v)
+	formats := []string{
+		"2006-01-02",   // ISO date
+		"2006/01/02",   // ISO with slashes
+		"1/2/2006",     // M/D/YYYY  (US)
+		"01/02/2006",   // MM/DD/YYYY (US)
+		"1/2/06",       // M/D/YY  (US, 2-digit year)
+		"01/02/06",     // MM/DD/YY (US, 2-digit year)
+		time.RFC3339,
+	}
+
+	for _, f := range formats {
+		if t, err := time.Parse(f, v); err == nil {
+			return t, nil
+		}
+	}
+
+	return time.Time{}, fmt.Errorf("invalid date %q — use MM/DD/YYYY or YYYY-MM-DD", v)
 }

@@ -133,3 +133,44 @@ func (h *AuthHandler) CreateUmpire(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, user)
 }
+
+func (h *AuthHandler) DirectorCreateUmpire(c *gin.Context) {
+	var req model.DirectorCreateUmpireRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	directorID := c.GetString("user_id")
+	user, err := h.service.DirectorCreateUmpire(c.Request.Context(), req, directorID)
+	if err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, user)
+}
+
+func (h *AuthHandler) DirectorListUmpires(c *gin.Context) {
+	directorID := c.GetString("user_id")
+	users, err := h.service.DirectorListUmpires(c.Request.Context(), directorID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, users)
+}
+
+func (h *AuthHandler) DirectorDeleteUmpire(c *gin.Context) {
+	directorID := c.GetString("user_id")
+	umpireID := c.Param("id")
+	if err := h.service.DirectorDeleteUmpire(c.Request.Context(), directorID, umpireID); err != nil {
+		if err.Error() == "umpire not found or not in your tournament" {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "umpire deleted"})
+}

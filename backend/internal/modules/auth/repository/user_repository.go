@@ -131,6 +131,30 @@ func (r *UserRepository) Delete(ctx context.Context, userID string) error {
 	return tx.Commit(ctx)
 }
 
+func (r *UserRepository) GetByTournamentAndRole(ctx context.Context, tournamentID, role string) ([]model.User, error) {
+	query := `
+		SELECT id, email, role, COALESCE(first_name, ''), COALESCE(last_name, ''), tournament_id, created_at, updated_at
+		FROM users
+		WHERE tournament_id = $1::uuid AND role = $2
+		ORDER BY created_at DESC
+	`
+	rows, err := r.db.Query(ctx, query, tournamentID, role)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	users := []model.User{}
+	for rows.Next() {
+		var u model.User
+		if err := rows.Scan(&u.ID, &u.Email, &u.Role, &u.FirstName, &u.LastName, &u.TournamentID, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, nil
+}
+
 func (r *UserRepository) GetAll(ctx context.Context, role string) ([]model.User, error) {
 	query := `
 		SELECT id, email, role, COALESCE(first_name, ''), COALESCE(last_name, ''), tournament_id, created_at, updated_at

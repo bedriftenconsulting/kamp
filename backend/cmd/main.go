@@ -191,6 +191,15 @@ func main() {
 				admin.DELETE("/tournaments/:id", tournamentHdl.DeleteTournament)
 			}
 
+			// Director Only
+			director := protected.Group("/director")
+			director.Use(authMiddleware.RequireRole("director"))
+			{
+				director.GET("/users/umpires", authHdl.DirectorListUmpires)
+				director.POST("/users/umpire", authHdl.DirectorCreateUmpire)
+				director.DELETE("/users/umpire/:id", authHdl.DirectorDeleteUmpire)
+			}
+
 			// Tournament Director or Admin
 			tournamentDirector := protected.Group("/tournaments/:id")
 			tournamentDirector.Use(authMiddleware.RequireTournamentAccess(db))

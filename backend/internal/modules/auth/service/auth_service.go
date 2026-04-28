@@ -133,3 +133,58 @@ func (s *AuthService) DeleteUser(ctx context.Context, userID string) error {
 func (s *AuthService) ListUsers(ctx context.Context, role string) ([]model.User, error) {
 	return s.repo.GetAll(ctx, role)
 }
+
+func (s *AuthService) DirectorCreateUmpire(ctx context.Context, req model.DirectorCreateUmpireRequest, directorID string) (*model.User, error) {
+	director, err := s.repo.GetByID(ctx, directorID)
+	if err != nil || director.TournamentID == nil {
+		return nil, errors.New("director has no assigned tournament")
+	}
+
+	existing, _ := s.repo.GetByEmail(ctx, req.Email)
+	if existing != nil {
+		return nil, errors.New("email already in use")
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+
+	user := &model.User{
+		Email:        req.Email,
+		PasswordHash: string(hashedPassword),
+		Role:         "umpire",
+	}
+
+	if err := s.repo.CreateUmpire(ctx, user, *director.TournamentID); err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+func (s *AuthService) DirectorListUmpires(ctx context.Context, directorID string) ([]model.User, error) {
+	director, err := s.repo.GetByID(ctx, directorID)
+	if err != nil || director.TournamentID == nil {
+		return nil, errors.New("director has no assigned tournament")
+	}
+	return s.repo.GetByTournamentAndRole(ctx, *director.TournamentID, "umpire")
+}
+
+func (s *AuthService) DirectorDeleteUmpire(ctx context.Context, directorID, umpireID string) error {
+	director, err := s.repo.GetByID(ctx, directorID)
+	if err != nil || director.TournamentID == nil {
+		return errors.New("director has no assigned tournament")
+	}
+
+	umpire, err := s.repo.GetByID(ctx, umpireID)
+	if err != nil {
+		return errors.New("umpire not found or not in your tournament")
+	}
+
+	if umpire.Role != "umpire" || umpire.TournamentID == nil || *umpire.TournamentID != *director.TournamentID {
+		return errors.New("umpire not found or not in your tournament")
+	}
+
+	return s.repo.Delete(ctx, umpireID)
+}

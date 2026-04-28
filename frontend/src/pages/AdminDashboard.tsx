@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import * as XLSX from "xlsx";
 import ScoreCard from "@/components/matches/ScoreCard";
 import { useAuth } from "@/components/auth/AuthContext";
 import { API_V1_URL } from "@/lib/api-url";
@@ -19,6 +20,7 @@ import {
   Settings,
   Globe,
   ShieldCheck,
+  UserCheck,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -59,6 +61,7 @@ const tabs = [
   { id: "tournament", label: "Tournament", icon: Trophy, adminOnly: false },
   { id: "rules", label: "Rules & Settings", icon: Settings, adminOnly: false },
   { id: "playoffs", label: "Playoffs", icon: Zap, adminOnly: false },
+  { id: "umpires", label: "Umpires", icon: UserCheck, adminOnly: false },
   { id: "users", label: "Users", icon: Users, adminOnly: true },
   { id: "directors", label: "Directors", icon: ShieldCheck, adminOnly: true },
 ];
@@ -427,6 +430,9 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
   const [playerForm, setPlayerForm] = useState<PlayerForm>(emptyPlayerForm);
   const [isSavingPlayer, setIsSavingPlayer] = useState(false);
   const [deletingPlayerId, setDeletingPlayerId] = useState<string | null>(null);
+  const [isBulkUploading, setIsBulkUploading] = useState(false);
+  const [bulkUploadResult, setBulkUploadResult] = useState<{ created: number; failed: number; errors: string[] } | null>(null);
+  const bulkUploadRef = useRef<HTMLInputElement>(null);
 
   const [isTeamDialogOpen, setIsTeamDialogOpen] = useState(false);
   const [teamForm, setTeamForm] = useState<TeamForm>(emptyTeamForm);
@@ -501,6 +507,11 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
   const [isCreateDirectorOpen, setIsCreateDirectorOpen] = useState(false);
   const [directorForm, setDirectorForm] = useState({ email: "", password: "", tournament_id: "" });
   const [isCreatingDirector, setIsCreatingDirector] = useState(false);
+
+  const [tournamentUmpires, setTournamentUmpires] = useState<SystemUser[]>([]);
+  const [isDirectorUmpireDialogOpen, setIsDirectorUmpireDialogOpen] = useState(false);
+  const [directorUmpireForm, setDirectorUmpireForm] = useState({ email: "", password: "" });
+  const [isCreatingDirectorUmpire, setIsCreatingDirectorUmpire] = useState(false);
 
   const [matchPage, setMatchPage] = useState(1);
   const matchesPerPage = 20;
@@ -593,6 +604,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
   };
 
   const fetchData = async () => {
+    setIsLoading(true);
     try {
       const tournamentRes = await fetchJSONOrFallback<any>(
         `${API_V1_URL}/tournaments`,
@@ -666,7 +678,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
         id: p.id,
         first_name: p.first_name || p.firstName || "",
         last_name: p.last_name || p.lastName || "",
-        date_of_birth: p.date_of_birth || p.dateOfBirth || "",
+        date_of_birth: (p.date_of_birth || p.dateOfBirth || "").slice(0, 10),
         nationality: p.nationality || p.country || "",
         tournament_name: p.tournament_name || p.tournamentName || "",
         tournament_id: p.tournament_id || "",
@@ -760,6 +772,15 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
         .then(data => setSystemUsers(Array.isArray(data) ? data : []))
         .catch(() => setSystemUsers([]));
 
+      if (isDirector) {
+        fetch(`${API_V1_URL}/director/users/umpires`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+          .then(res => res.ok ? res.json() : [])
+          .then(data => setTournamentUmpires(Array.isArray(data) ? data : []))
+          .catch(() => setTournamentUmpires([]));
+      }
+
     } catch (error) {
       console.error("Error loading admin data:", error);
     } finally {
@@ -819,6 +840,109 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
     return finalizedMatches.slice(start, start + matchesPerPage);
   }, [matchPage, finalizedMatches]);
 
+  const downloadPlayerTemplate = () => {
+    const headers = ["first_name", "last_name", "date_of_birth", "nationality", "gender", "tennis_level", "ranking", "bio", "tournament_name"];
+    const exampleTournament = tournaments.length > 0 ? tournaments[0].name : "My Tournament";
+    const example = ["John", "Doe", "5/15/1990", "Norwegian", "Men", "Intermediate", "1", "Top seed", exampleTournament];
+    const ws = XLSX.utils.aoa_to_sheet([headers, example]);
+    ws["!cols"] = headers.map(() => ({ wch: 20 }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Players");
+    XLSX.writeFile(wb, "players_template.xlsx");
+  };
+
+  const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsBulkUploading(true);
+    setBulkUploadResult(null);
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { cellDates: true });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<any>(sheet, { header: 1, raw: false, dateNF: "yyyy-mm-dd" });
+      if (rows.length < 2) { alert("No player data found in the file."); return; }
+
+      const headers: string[] = (rows[0] as any[]).map((h: any) => String(h).trim().toLowerCase());
+      let created = 0, failed = 0;
+      const errors: string[] = [];
+
+      const formatDate = (v: any): string | null => {
+        if (v === "" || v === null || v === undefined) return "";
+        if (v instanceof Date) return isNaN(v.getTime()) ? null : v.toISOString().slice(0, 10);
+        const s = String(v).trim();
+        if (!s) return "";
+        // ISO timestamp — strip time
+        if (/^\d{4}-\d{2}-\d{2}T/.test(s)) return s.slice(0, 10);
+        // YYYY-MM-DD
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+        // YYYY/MM/DD
+        const isoSlash = s.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+        if (isoSlash) return `${isoSlash[1]}-${isoSlash[2]}-${isoSlash[3]}`;
+        // M/D/YYYY or MM/DD/YYYY
+        const mdyFull = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (mdyFull) return `${mdyFull[3]}-${mdyFull[1].padStart(2,"0")}-${mdyFull[2].padStart(2,"0")}`;
+        // M/D/YY or MM/DD/YY  (00-29 → 2000s, 30-99 → 1900s)
+        const mdyShort = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
+        if (mdyShort) {
+          const yy = parseInt(mdyShort[3]);
+          const year = yy >= 30 ? `19${mdyShort[3]}` : `20${mdyShort[3].padStart(2,"0")}`;
+          return `${year}-${mdyShort[1].padStart(2,"0")}-${mdyShort[2].padStart(2,"0")}`;
+        }
+        return null;
+      };
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i] as any[];
+        if (!row || row.length === 0) continue;
+        const p: Record<string, any> = {};
+        headers.forEach((h, idx) => { p[h] = row[idx] !== undefined ? row[idx] : ""; });
+        if (!p.first_name || !p.last_name) {
+          errors.push(`Row ${i + 1}: first_name and last_name are required`);
+          failed++; continue;
+        }
+        const dob = formatDate(p.date_of_birth);
+        if (dob === null) {
+          errors.push(`Row ${i + 1} (${p.first_name} ${p.last_name}): invalid birthdate format "${p.date_of_birth}" — use MM/DD/YYYY or YYYY-MM-DD`);
+          failed++; continue;
+        }
+        try {
+          const res = await fetch(`${API_V1_URL}/players`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+            body: JSON.stringify({
+              first_name: String(p.first_name), last_name: String(p.last_name),
+              date_of_birth: dob, nationality: p.nationality || "",
+              gender: p.gender || "", tennis_level: p.tennis_level || "",
+              ranking: parseInt(p.ranking) || 0, bio: p.bio || "",
+              tournament_id: (p.tournament_name
+                ? (tournaments.find(t => t.name.trim().toLowerCase() === String(p.tournament_name).trim().toLowerCase())?.id ?? globalTournamentId)
+                : globalTournamentId),
+              tournament_name: p.tournament_name || "",
+            }),
+          });
+          if (res.ok) { created++; }
+          else {
+            const err = await res.json().catch(() => ({}));
+            errors.push(`Row ${i + 1} (${p.first_name} ${p.last_name}): ${err.error || "Failed"}`);
+            failed++;
+          }
+        } catch { errors.push(`Row ${i + 1}: Network error`); failed++; }
+      }
+
+      setBulkUploadResult({ created, failed, errors });
+      if (created > 0) {
+        toast({ title: "Import Complete", description: `${created} player(s) created${failed > 0 ? `, ${failed} failed` : ""}` });
+        await fetchData();
+      }
+    } catch (err: any) {
+      alert(err?.message || "Failed to parse file");
+    } finally {
+      setIsBulkUploading(false);
+      e.target.value = "";
+    }
+  };
+
   const handleOpenAddPlayer = () => {
     setIsEditingPlayer(false);
     setPlayerForm({ ...emptyPlayerForm, tournament_id: globalTournamentId });
@@ -859,9 +983,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
         id: playerForm.id || undefined,
         first_name: playerForm.first_name,
         last_name: playerForm.last_name,
-        date_of_birth: playerForm.date_of_birth
-          ? `${playerForm.date_of_birth}T00:00:00Z`
-          : undefined,
+        date_of_birth: playerForm.date_of_birth || undefined,
         nationality: playerForm.nationality,
         tournament_id: playerForm.tournament_id || null,
         gender: playerForm.gender,
@@ -1198,6 +1320,54 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
       alert(error?.message || "Failed to create director");
     } finally {
       setIsCreatingDirector(false);
+    }
+  };
+
+  const handleDirectorCreateUmpire = async () => {
+    if (!directorUmpireForm.email || !directorUmpireForm.password) {
+      alert("All fields are required.");
+      return;
+    }
+    setIsCreatingDirectorUmpire(true);
+    try {
+      const res = await fetch(`${API_V1_URL}/director/users/umpire`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify(directorUmpireForm),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to create umpire");
+      }
+      toast({ title: "Umpire Created", description: `Credentials created for ${directorUmpireForm.email}` });
+      setIsDirectorUmpireDialogOpen(false);
+      setDirectorUmpireForm({ email: "", password: "" });
+      await fetchData();
+    } catch (error: any) {
+      alert(error?.message || "Failed to create umpire");
+    } finally {
+      setIsCreatingDirectorUmpire(false);
+    }
+  };
+
+  const handleDirectorDeleteUmpire = async (umpireId: string, email: string) => {
+    if (!confirm(`Remove umpire ${email}? This will delete their account.`)) return;
+    try {
+      const res = await fetch(`${API_V1_URL}/director/users/umpire/${umpireId}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to remove umpire");
+      }
+      toast({ title: "Umpire Removed", description: `${email} has been removed.` });
+      await fetchData();
+    } catch (error: any) {
+      alert(error?.message || "Failed to remove umpire");
     }
   };
 
@@ -2016,6 +2186,24 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
               <h1 className="text-2xl font-black">Players & Teams</h1>
               <div className="flex flex-wrap items-center gap-2">
+                <Button onClick={downloadPlayerTemplate} variant="outline" size="sm">
+                  Download Template
+                </Button>
+                <Button
+                  onClick={() => bulkUploadRef.current?.click()}
+                  variant="outline"
+                  size="sm"
+                  disabled={isBulkUploading}
+                >
+                  {isBulkUploading ? "Importing…" : "Import from Excel"}
+                </Button>
+                <input
+                  ref={bulkUploadRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  className="hidden"
+                  onChange={handleBulkUpload}
+                />
                 <Button onClick={handleOpenAddTeam} className="gap-2" variant="outline">
                   <Plus size={16} />
                   Add Team
@@ -2026,6 +2214,20 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
                 </Button>
               </div>
             </div>
+
+            {bulkUploadResult && (
+              <div className="rounded-lg border bg-card p-4 space-y-2 text-sm">
+                <p className="font-semibold">
+                  Import result: {bulkUploadResult.created} created, {bulkUploadResult.failed} failed
+                </p>
+                {bulkUploadResult.errors.length > 0 && (
+                  <ul className="text-destructive space-y-1 list-disc list-inside">
+                    {bulkUploadResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+                  </ul>
+                )}
+                <Button variant="ghost" size="sm" onClick={() => setBulkUploadResult(null)}>Dismiss</Button>
+              </div>
+            )}
 
             <div className="bg-card border rounded-md overflow-x-auto">
               <table className="w-full text-sm min-w-[540px]">
@@ -3015,6 +3217,61 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
             </div>
           );
         })()}
+
+        {activeTab === "umpires" && (
+          <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-black">Umpires</h1>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Manage umpire accounts for your tournament. Umpires can score matches and view the main website.
+                </p>
+              </div>
+              <Button onClick={() => setIsDirectorUmpireDialogOpen(true)} size="sm">
+                + Create Umpire
+              </Button>
+            </div>
+
+            <div className="border rounded-xl overflow-x-auto bg-card">
+              <Table className="min-w-[420px]">
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead>Email</TableHead>
+                    <TableHead className="hidden sm:table-cell">Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(isDirector ? tournamentUmpires : systemUsers.filter(u => u.role === "umpire")).length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={3} className="h-24 text-center text-muted-foreground italic">
+                        No umpires assigned to this tournament yet.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    (isDirector ? tournamentUmpires : systemUsers.filter(u => u.role === "umpire")).map((u) => (
+                      <TableRow key={u.id} className="hover:bg-muted/30 transition-colors">
+                        <TableCell className="font-medium">{u.email}</TableCell>
+                        <TableCell className="text-muted-foreground text-sm hidden sm:table-cell">
+                          {new Date(u.created_at).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDirectorDeleteUmpire(u.id, u.email)}
+                          >
+                            Remove
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
 
         {activeTab === "users" && (
           <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
@@ -4037,6 +4294,48 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
             </Button>
             <Button onClick={handleCreateDirector} disabled={isCreatingDirector}>
               {isCreatingDirector ? "Creating…" : "Create Director"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Director: Create Umpire Dialog ── */}
+      <Dialog open={isDirectorUmpireDialogOpen} onOpenChange={setIsDirectorUmpireDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Umpire</DialogTitle>
+            <DialogDescription>
+              Create login credentials for an umpire. They will be automatically assigned to your tournament and can score matches.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="dir-umpire-email">Email</Label>
+              <Input
+                id="dir-umpire-email"
+                type="email"
+                placeholder="umpire@example.com"
+                value={directorUmpireForm.email}
+                onChange={(e) => setDirectorUmpireForm({ ...directorUmpireForm, email: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dir-umpire-password">Password</Label>
+              <Input
+                id="dir-umpire-password"
+                type="password"
+                placeholder="Min. 6 characters"
+                value={directorUmpireForm.password}
+                onChange={(e) => setDirectorUmpireForm({ ...directorUmpireForm, password: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setIsDirectorUmpireDialogOpen(false)} disabled={isCreatingDirectorUmpire}>
+              Cancel
+            </Button>
+            <Button onClick={handleDirectorCreateUmpire} disabled={isCreatingDirectorUmpire}>
+              {isCreatingDirectorUmpire ? "Creating…" : "Create Umpire"}
             </Button>
           </div>
         </DialogContent>

@@ -41,3 +41,8 @@ type CreateDirectorRequest struct {
 	Password     string `json:"password" binding:"required,min=6"`
 	TournamentID string `json:"tournament_id" binding:"required"`
 }
+
+type DirectorCreateUmpireRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required,min=6"`
+}
