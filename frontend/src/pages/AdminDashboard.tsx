@@ -420,6 +420,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
   const [globalTournamentId, setGlobalTournamentId] = useState<string>(lockedTournamentId || "");
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isContentLoading, setIsContentLoading] = useState(false);
   const [matches, setMatches] = useState<Match[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -604,7 +605,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
   };
 
   const fetchData = async () => {
-    setIsLoading(true);
+    setIsContentLoading(true);
     try {
       const tournamentRes = await fetchJSONOrFallback<any>(
         `${API_V1_URL}/tournaments`,
@@ -785,6 +786,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
       console.error("Error loading admin data:", error);
     } finally {
       setIsLoading(false);
+      setIsContentLoading(false);
     }
   };
 
@@ -1860,6 +1862,11 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
             )
           )}
         </div>
+        {isContentLoading ? (
+          <div className="flex items-center justify-center min-h-[50vh]">
+            <Loader />
+          </div>
+        ) : (<>
         {activeTab === "overview" && (
           <div>
             <h1 className="text-2xl font-black mb-6">Dashboard</h1>
@@ -3426,6 +3433,7 @@ export default function AdminDashboard({ forcedTournamentId }: { forcedTournamen
             </div>
           </div>
         )}
+        </>)}
 
       </main><Dialog open={isPlayerDialogOpen} onOpenChange={setIsPlayerDialogOpen}>
           <DialogContent className="sm:max-w-2xl">
